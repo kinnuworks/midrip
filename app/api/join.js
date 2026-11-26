@@ -53,8 +53,10 @@ async function handler(req, res) {
     }
     const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0] || "unknown";
     const now = Date.now();
-    if ((recent.get(ip) || 0) > now - 15e3) return res.status(429).json({ error: "slow down" });
-    recent.set(ip, now);
+    const hits = (recent.get(ip) || []).filter((t) => t > now - 60000);
+    if (hits.length >= 6) return res.status(429).json({ error: "slow down" });
+    hits.push(now);
+    recent.set(ip, hits);
     const secret = process.env.RELAYER_SECRET;
     if (!secret) return res.status(500).json({ error: "relayer not configured" });
     const relayer = nacl.sign.keyPair.fromSecretKey(Uint8Array.from(JSON.parse(secret)));

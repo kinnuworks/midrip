@@ -85,7 +85,11 @@ export async function ensurePlayer(kp: Keypair, onStep: (s: string) => void = ()
   if (info && !info.owner.equals(PROGRAM_ID)) return out; // already delegated
   if ((await base.getBalance(kp.publicKey)) < 10_000_000) {
     onStep("Getting devnet SOL for setup…");
-    const r = await fetch("/api/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: kp.publicKey.toBase58() }) });
+    let r = await fetch("/api/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: kp.publicKey.toBase58() }) });
+    for (let i = 0; i < 6 && r.status === 429; i++) {
+      await new Promise((res) => setTimeout(res, 5000));
+      r = await fetch("/api/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: kp.publicKey.toBase58() }) });
+    }
     if (!r.ok) throw new Error("funding failed: " + (await r.text()));
     await waitFor(async () => (await base.getBalance(kp.publicKey)) >= 10_000_000);
   }

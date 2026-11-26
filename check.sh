@@ -33,6 +33,12 @@ if fails:
     print("FAIL:", "; ".join(fails)); sys.exit(1)
 PY
 
+echo "== demo path in a real browser (join, open, rip, list, clock falls, peek refused, bot buys, verify), recorded"
+(cd app && npx playwright test --reporter=line) > .kit/logs/check-browser.log 2>&1 || { tail -40 .kit/logs/check-browser.log; exit 1; }
+tail -2 .kit/logs/check-browser.log | head -1
+vid=$(ls -t .kit/e2e-results/*/video.webm 2>/dev/null | head -1)
+[ -n "$vid" ] && mkdir -p .kit/rough-cut && cp "$vid" .kit/rough-cut/demo-path-latest.webm
+
 # Evidence labels: once evidence/EVAL_PLAN.md exists, the public text (README, submission text,
 # video script) must label every evidence claim for its kind.
 if [ -f evidence/EVAL_PLAN.md ] && [ -f evidence_lint.py ]; then
