@@ -55,4 +55,4 @@ Then one card per claim:
 Then a short limits paragraph, in numbers: zero real users, the interval, the data's years, and the next real test, with the metric and threshold that would change the conclusion.
 
 ## Changes after the first run
-<None yet. Each change: the date, what changed, and why.>
+- 27 Nov 2026 ~02:05 IST: after run 1 (n=100 packs, evidence/packs-run1.json) the payout interval (68.7% to 84.9%) was dominated by the 3% Legendary tier (0 seen, 3 expected), so a second, independent run of 300 packs was added (evidence/packs-run2.json). Both runs are reported separately and combined; nothing was dropped. Run 1 alone fails Metric 3 (design 97% outside its interval); run 2 alone and the combined 400 pass. Metrics, thresholds and the success rule are unchanged.
