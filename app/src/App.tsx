@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey, type Connection, type Transaction } from "@solana/web3.js";
 import {
-  base, big, configPda, decode, ensurePlayer, EXPLORER, EXPLORER_ADDR, loadBurner, PROGRAM_ID, playerPda, program, sealedPda, send, STATE,
+  base, big, configPda, decode, ensurePlayer, mintPda, EXPLORER, EXPLORER_ADDR, loadBurner, PROGRAM_ID, playerPda, program, sealedPda, send, STATE,
   tablePda, teeConnection, VRF_EPHEMERAL_QUEUE, type Config, type Player, type SendResult, type Table,
 } from "./lib/chain";
 import { clockPrice, evRestMilli, PACK_SIZE, TIER_NAMES, verifyPack, type VerifyResult } from "./lib/packmath";
@@ -169,6 +169,31 @@ export default function App() {
       if (n > 0) await run(`sell ${n} ${TIER_NAMES[tier]}`, undefined, () => pg.methods.sellCards(tier, n).accounts({ wallet: me.publicKey }).transaction());
     }
   };
+  // Move cards out of play and mint them as SPL tokens in this wallet on Solana:
+  // withdraw on the rollup, commit to Solana, then claim on Solana.
+  const [owned, setOwned] = useState<number[] | null>(null);
+  const toWallet = async () => {
+    if (!pg || !player) return;
+    const counts = [...player.cards];
+    for (let tier = 0; tier < counts.length; tier++) if (counts[tier] > 0) await run(`withdraw ${counts[tier]} ${TIER_NAMES[tier]}`, undefined, () => pg.methods.withdrawCards(tier, counts[tier]).accounts({ wallet: me.publicKey }).transaction());
+    await run("settle to Solana", undefined, () => pg.methods.settlePlayers().accounts({ payer: me.publicKey }).remainingAccounts([{ pubkey: playerPda(me.publicKey), isSigner: false, isWritable: true }]).transaction());
+    setBusy("claim");
+    const target = player.withdrawn.map((w, i) => w + counts[i]);
+    for (let i = 0; i < 80; i++) {
+      const p = decode<Player>("Player", (await base.getAccountInfo(playerPda(me.publicKey)))?.data);
+      if (p && p.withdrawn.every((w, k) => w >= target[k])) break;
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    if ((await base.getBalance(me.publicKey)) < 10_000_000) await fetch("/api/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: me.publicKey.toBase58() }) });
+    const pgBase = program(base, me);
+    for (let tier = 0; tier < counts.length; tier++) if (target[tier] > 0) await run(`claim ${TIER_NAMES[tier]} tokens`, undefined, () => pgBase.methods.claimCards(tier).accountsPartial({ wallet: me.publicKey, mint: mintPda(tier) }).transaction(), true);
+    const bal: number[] = [];
+    for (let tier = 0; tier < 5; tier++) {
+      const a = (await base.getParsedTokenAccountsByOwner(me.publicKey, { mint: mintPda(tier) })).value[0];
+      bal.push(a ? Number(a.account.data.parsed.info.tokenAmount.amount) : 0);
+    }
+    setOwned(bal);
+  };
   const verify = (id: number, t: Table) => config && setVerified((v) => ({ ...v, [id]: verifyPack({ randomness: t.randomness, commitment: t.commitment, revealed: t.revealed, nonce: big(t.nonce) }, config.base_weights, config.hit_weights) }));
 
   const joined = !!player;
@@ -191,11 +216,12 @@ export default function App() {
       <section className="me">
         <div>Your wallet (kept in this browser): <a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">{short(me.publicKey.toBase58())}</a></div>
         {joined ? (
-          <div>Chips: <b>{chips.toString()}</b> · Cards: {player!.cards.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} {player!.cards.some((n) => n > 0) && config && <button disabled={!!busy} onClick={sellAll}>Sell my cards for {player!.cards.reduce((a, n, i) => a + BigInt(n) * big(i < 2 ? config.base_values[i] : config.hit_values[i - 2]), 0n).toString()} chips</button>}</div>
+          <div>Chips: <b>{chips.toString()}</b> · Cards: {player!.cards.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} {player!.cards.some((n) => n > 0) && <button disabled={!!busy} onClick={toWallet}>Move my cards to my wallet</button>} {player!.cards.some((n) => n > 0) && config && <button disabled={!!busy} onClick={sellAll}>Sell my cards for {player!.cards.reduce((a, n, i) => a + BigInt(n) * big(i < 2 ? config.base_values[i] : config.hit_values[i - 2]), 0n).toString()} chips</button>}</div>
         ) : (
           <button disabled={!!joinStep || !er} onClick={join}>{joinStep ?? "Get 2,000 play chips"}</button>
         )}
         <label className="botctl"><input type="checkbox" checked={botOn} onChange={(e) => setBotOn(e.target.checked)} /> Demo bot ({botStatus}{botPlayer ? ` · ${big(botPlayer.chips).toString()} chips` : ""})</label>
+        {owned && <div className="owned">In your wallet on Solana: {owned.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} (<a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">see tokens</a>)</div>}
         <div className="slot">Rollup block <b>{slot.toString()}</b></div>
       </section>
 

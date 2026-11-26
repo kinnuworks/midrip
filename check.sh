@@ -28,6 +28,7 @@ if not c["salePriceMatchesClock"]: fails.append("sale price differs from the clo
 if not c["evRestMatches"]: fails.append("on-chain EV of the sealed rest differs from the client's")
 if c["sealedReadStranger"] != "null": fails.append("a stranger could read the sealed pack: " + c["sealedReadStranger"])
 if c.get("strangerPredictedCorrectly"): fails.append("a stranger rebuilt the pack from visible transactions")
+if not c.get("claimsOk"): fails.append("withdrawn cards were not minted as SPL tokens on Solana: " + str(c.get("claims")))
 print("e2e", sys.argv[1], "vrf callback ms", c["vrfCallbackMs"], "sale", c["sale"])
 if fails:
     print("FAIL:", "; ".join(fails)); sys.exit(1)

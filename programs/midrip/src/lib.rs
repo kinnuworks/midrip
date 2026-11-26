@@ -23,7 +23,12 @@ declare_id!("DAthUNW8m79QheY2oNPq42ab99hCcavp1BVXDrmAHgYM");
 const PROGRAM_IDENTITY: Pubkey = program_identity_pubkey(&crate::ID);
 
 pub const CONFIG_SEED: &[u8] = b"config";
-pub const PLAYER_SEED: &[u8] = b"player";
+/// v2 player layout (adds `withdrawn`); the seed changed with it so old accounts are never misread.
+pub const PLAYER_SEED: &[u8] = b"player2";
+pub const MINT_SEED: &[u8] = b"card-mint";
+pub const MINT_AUTH_SEED: &[u8] = b"mint-auth";
+pub const CLAIM_SEED: &[u8] = b"claim";
+pub const DELEGATION_PROGRAM: Pubkey = pubkey!("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh");
 pub const TABLE_SEED: &[u8] = b"table";
 pub const SEALED_SEED: &[u8] = b"sealed";
 pub const NOT_REVEALED: u8 = 255;
@@ -131,6 +136,46 @@ pub mod midrip {
             &[SEALED_SEED, &[id]],
             DelegateConfig { validator, ..Default::default() },
         )?;
+        Ok(())
+    }
+
+    /// One SPL mint per rarity, minted only by this program.
+    pub fn init_mint(ctx: Context<InitMint>, tier: u8) -> Result<()> {
+        require!((tier as usize) < NUM_TIERS, MidripError::BadConfig);
+        msg!("mint tier={} {}", tier, ctx.accounts.mint.key());
+        Ok(())
+    }
+
+    /// Mint the cards a player has withdrawn (as last committed to Solana) and not yet claimed.
+    pub fn claim_cards(ctx: Context<ClaimCards>, tier: u8) -> Result<()> {
+        let t = tier as usize;
+        require!(t < NUM_TIERS, MidripError::BadConfig);
+        let info = &ctx.accounts.player;
+        require!(info.owner == &crate::ID || info.owner == &DELEGATION_PROGRAM, MidripError::BadAccount);
+        let data = info.try_borrow_data()?;
+        let player = Player::try_deserialize(&mut &data[..])?;
+        drop(data);
+        require_keys_eq!(player.wallet, ctx.accounts.wallet.key(), MidripError::BadAccount);
+        let claim = &mut ctx.accounts.claim;
+        claim.wallet = player.wallet;
+        let owed = player.withdrawn[t].saturating_sub(claim.claimed[t]);
+        require!(owed > 0, MidripError::NotEnoughCards);
+        claim.claimed[t] = player.withdrawn[t];
+        let bump = ctx.bumps.mint_auth;
+        let seeds: &[&[u8]] = &[MINT_AUTH_SEED, &[bump]];
+        anchor_spl::token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.key(),
+                anchor_spl::token::MintTo {
+                    mint: ctx.accounts.mint.to_account_info(),
+                    to: ctx.accounts.token_account.to_account_info(),
+                    authority: ctx.accounts.mint_auth.to_account_info(),
+                },
+                &[seeds],
+            ),
+            owed as u64,
+        )?;
+        msg!("claim tier={} minted={} to={}", tier, owed, ctx.accounts.wallet.key());
         Ok(())
     }
 
@@ -352,6 +397,17 @@ pub mod midrip {
         Ok(())
     }
 
+    /// Take cards out of play so they can be claimed as SPL tokens on Solana after the next settle.
+    pub fn withdraw_cards(ctx: Context<SellCards>, tier: u8, count: u32) -> Result<()> {
+        require!((tier as usize) < NUM_TIERS && count > 0, MidripError::BadConfig);
+        let p = &mut ctx.accounts.player;
+        require!(p.cards[tier as usize] >= count, MidripError::NotEnoughCards);
+        p.cards[tier as usize] -= count;
+        p.withdrawn[tier as usize] = p.withdrawn[tier as usize].saturating_add(count);
+        msg!("withdraw tier={} count={} slot={}", tier, count, Clock::get()?.slot);
+        Ok(())
+    }
+
     /// Sell cards back at 100% of their published table value.
     pub fn sell_cards(ctx: Context<SellCards>, tier: u8, count: u32) -> Result<()> {
         require!((tier as usize) < NUM_TIERS && count > 0, MidripError::BadConfig);
@@ -475,6 +531,8 @@ pub struct Player {
     pub cards: [u32; NUM_TIERS],
     pub packs_opened: u32,
     pub bump: u8,
+    /// Cards taken out of play to be minted as SPL tokens on Solana; only ever grows.
+    pub withdrawn: [u32; NUM_TIERS],
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace)]
@@ -712,6 +770,52 @@ pub struct AbandonStale<'info> {
     pub table: Account<'info, Table>,
     #[account(seeds = [SEALED_SEED, &[table.id]], bump = sealed.bump)]
     pub sealed: Account<'info, Sealed>,
+}
+
+#[derive(Accounts)]
+#[instruction(tier: u8)]
+pub struct InitMint<'info> {
+    #[account(mut, address = config.admin @ MidripError::NotAdmin)]
+    pub admin: Signer<'info>,
+    #[account(seeds = [CONFIG_SEED], bump = config.bump)]
+    pub config: Account<'info, Config>,
+    /// CHECK: PDA that signs mint_to; holds no data.
+    #[account(seeds = [MINT_AUTH_SEED], bump)]
+    pub mint_auth: UncheckedAccount<'info>,
+    #[account(init, payer = admin, seeds = [MINT_SEED, &[tier]], bump, mint::decimals = 0, mint::authority = mint_auth)]
+    pub mint: Account<'info, anchor_spl::token::Mint>,
+    pub token_program: Program<'info, anchor_spl::token::Token>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(tier: u8)]
+pub struct ClaimCards<'info> {
+    #[account(mut)]
+    pub wallet: Signer<'info>,
+    /// CHECK: the player's account as last committed to Solana (owned by this program or, while
+    /// delegated, by the delegation program); deserialized and checked in the handler.
+    #[account(seeds = [PLAYER_SEED, wallet.key().as_ref()], bump)]
+    pub player: UncheckedAccount<'info>,
+    #[account(init_if_needed, payer = wallet, space = 8 + ClaimRecord::INIT_SPACE, seeds = [CLAIM_SEED, wallet.key().as_ref()], bump)]
+    pub claim: Account<'info, ClaimRecord>,
+    /// CHECK: PDA that signs mint_to.
+    #[account(seeds = [MINT_AUTH_SEED], bump)]
+    pub mint_auth: UncheckedAccount<'info>,
+    #[account(mut, seeds = [MINT_SEED, &[tier]], bump)]
+    pub mint: Account<'info, anchor_spl::token::Mint>,
+    #[account(init_if_needed, payer = wallet, associated_token::mint = mint, associated_token::authority = wallet)]
+    pub token_account: Account<'info, anchor_spl::token::TokenAccount>,
+    pub token_program: Program<'info, anchor_spl::token::Token>,
+    pub associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct ClaimRecord {
+    pub wallet: Pubkey,
+    pub claimed: [u32; NUM_TIERS],
 }
 
 #[derive(Accounts)]

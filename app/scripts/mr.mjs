@@ -22,7 +22,9 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const loadKeypair = (p) => Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync(p.replace("~", process.env.HOME)))));
 export const pda = (...seeds) => PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
 export const configPda = () => pda(Buffer.from("config"));
-export const playerPda = (w) => pda(Buffer.from("player"), w.toBuffer());
+export const playerPda = (w) => pda(Buffer.from("player2"), w.toBuffer());
+export const mintPda = (tier) => pda(Buffer.from("card-mint"), Buffer.from([tier]));
+export const claimPda = (w) => pda(Buffer.from("claim"), w.toBuffer());
 export const tablePda = (id) => pda(Buffer.from("table"), Buffer.from([id]));
 export const sealedPda = (id) => pda(Buffer.from("sealed"), Buffer.from([id]));
 

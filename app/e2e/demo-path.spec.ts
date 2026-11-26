@@ -42,4 +42,8 @@ test("join, open, rip, sell the sealed rest on the clock, peek, get bought, veri
   await expect(done).toBeVisible({ timeout: 60_000 });
   await done.getByRole("button", { name: "Verify this pack" }).click();
   await expect(done.getByText(/Verified: all 6 cards match/)).toBeVisible();
+
+  // The two cards I revealed before selling are mine: mint them as SPL tokens in this wallet on Solana.
+  await page.getByRole("button", { name: "Move my cards to my wallet" }).click();
+  await expect(page.getByText(/In your wallet on Solana: .*[1-9]/)).toBeVisible({ timeout: 90_000 });
 });

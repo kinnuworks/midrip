@@ -1,6 +1,6 @@
 // End-to-end on devnet + MagicBlock private rollup: two fresh players, one pack opened, sold mid-rip, finished, verified.
 // Also the break tests: a stranger tries to read the sealed pack and the VRF callback transaction.
-import { base, loadKeypair, program, configPda, tablePda, sealedPda, playerPda, TEE_VALIDATOR, VRF_EPHEMERAL_QUEUE, teeConn, sendEr, decode, log, sleep, fund, Keypair } from "./mr.mjs";
+import { base, loadKeypair, program, configPda, tablePda, sealedPda, playerPda, mintPda, TEE_VALIDATOR, VRF_EPHEMERAL_QUEUE, teeConn, sendEr, decode, log, sleep, fund, Keypair } from "./mr.mjs";
 import { verifyPack, evRestMilli, clockPrice, hex, drawPack } from "../src/lib/packmath.ts";
 import fs from "fs";
 const relayer = loadKeypair(new URL("../../.kit/keys/relayer.json", import.meta.url).pathname);
@@ -53,12 +53,13 @@ const sigs = await ea.getSignaturesForAddress(t, { limit: 10 });
 out.checks.tableSigsSeenByOpener = sigs.length;
 const cbSig = sigs.map((x) => x.signature).find((x) => x !== out.steps[0].sig);
 out.checks.callbackSig = cbSig;
-for (const [who, c] of [["stranger", es], ["opener", ea]]) {
+for (const [who, c] of (cbSig ? [["stranger", es], ["opener", ea]] : [])) {
   try { const tx = await c.getTransaction(cbSig, { maxSupportedTransactionVersion: 0 }); out.checks["callbackTx_" + who] = tx ? "VISIBLE (" + (tx.meta?.logMessages?.length ?? 0) + " logs)" : "null"; }
   catch (e) { out.checks["callbackTx_" + who] = "refused " + String(e).slice(0, 80); }
 }
 try { const ss = await es.getSignaturesForAddress(s, { limit: 5 }); out.checks.sealedSigsStranger = ss.length; } catch (e) { out.checks.sealedSigsStranger = "refused " + String(e).slice(0, 60); }
-{ const tx = await es.getTransaction(cbSig, { maxSupportedTransactionVersion: 0 }); if (tx) { const m = tx.transaction.message; const keys = m.staticAccountKeys; const ix = m.compiledInstructions.find((i) => keys[i.programIdIndex].equals(t.constructor === Object ? t : keys[i.programIdIndex]) && Buffer.from(i.data).length >= 40 && keys[i.programIdIndex].toBase58() === "DAthUNW8m79QheY2oNPq42ab99hCcavp1BVXDrmAHgYM"); if (ix) { const rnd = Buffer.from(ix.data).subarray(8, 40); out.checks.strangerPredictedPack = drawPack(rnd, cfg.base_weights, cfg.hit_weights).tiers; } } }
+if (!cbSig) { out.checks.callbackTx_stranger = "not listed"; out.checks.callbackTx_opener = "not listed"; }
+if (cbSig) { const tx = await es.getTransaction(cbSig, { maxSupportedTransactionVersion: 0 }); if (tx) { const m = tx.transaction.message; const keys = m.staticAccountKeys; const ix = m.compiledInstructions.find((i) => keys[i.programIdIndex].equals(t.constructor === Object ? t : keys[i.programIdIndex]) && Buffer.from(i.data).length >= 40 && keys[i.programIdIndex].toBase58() === "DAthUNW8m79QheY2oNPq42ab99hCcavp1BVXDrmAHgYM"); if (ix) { const rnd = Buffer.from(ix.data).subarray(8, 40); out.checks.strangerPredictedPack = drawPack(rnd, cfg.base_weights, cfg.hit_weights).tiers; } } }
 log("callback tx:", out.checks.callbackTx_stranger, "(stranger) /", out.checks.callbackTx_opener, "(opener); sealed sigs seen by stranger:", out.checks.sealedSigsStranger);
 
 // 2. A reveals two cards
@@ -93,9 +94,26 @@ const [plA, plB] = [decode("Player", await ea.getAccountInfo(playerPda(A.publicK
 out.checks.players = { A: { chips: plA.chips.toString(), cards: plA.cards }, B: { chips: plB.chips.toString(), cards: plB.cards } };
 log("A", JSON.stringify(out.checks.players.A), "B", JSON.stringify(out.checks.players.B));
 
+// 5a. B moves its cards out of play, to be claimed as SPL tokens on Solana after the settle
+const owedB = Array.from(plB.cards);
+for (let tier = 0; tier < 5; tier++) if (owedB[tier] > 0) step("withdraw_cards", await sendEr(eb, await pb.methods.withdrawCards(tier, owedB[tier]).accounts({ wallet: B.publicKey }).transaction(), [B]), { tier, count: owedB[tier] });
 // 5. settle: commit table + both players to Solana
 const st = await (BigInt(tb.nonce.toString()) <= 9n ? pa.methods.settle().accounts({ payer: A.publicKey, table: t }) : pa.methods.settlePlayers().accounts({ payer: A.publicKey })).remainingAccounts([playerPda(A.publicKey), playerPda(B.publicKey)].map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }))).transaction();
 step("settle", await sendEr(ea, st, [A]));
+// 6. B claims its cards on Solana as SPL tokens, once the commit has landed
+const pbBase = program(base, B);
+let committed = null;
+for (let i = 0; i < 60; i++) { const info = await base.getAccountInfo(playerPda(B.publicKey)); committed = decode("Player", info); if (committed && committed.withdrawn.some((x, t) => x === owedB[t] && x > 0)) break; await sleep(500); }
+out.checks.claims = [];
+for (let tier = 0; tier < 5; tier++) {
+  if (!owedB[tier]) continue;
+  const sig = await pbBase.methods.claimCards(tier).accountsPartial({ wallet: B.publicKey, mint: mintPda(tier) }).rpc();
+  const ata = (await base.getParsedTokenAccountsByOwner(B.publicKey, { mint: mintPda(tier) })).value[0];
+  const bal = ata ? Number(ata.account.data.parsed.info.tokenAmount.amount) : 0;
+  out.checks.claims.push({ tier, owed: owedB[tier], balance: bal, sig });
+  log("claim tier", tier, "owed", owedB[tier], "token balance", bal, sig);
+}
+out.checks.claimsOk = out.checks.claims.length > 0 && out.checks.claims.every((c) => c.balance === c.owed);
 out.players = [A.publicKey.toBase58(), B.publicKey.toBase58()];
 fs.mkdirSync(new URL("../../evidence/runs/", import.meta.url).pathname, { recursive: true });
 fs.writeFileSync(new URL(`../../evidence/runs/e2e-${Date.now()}.json`, import.meta.url).pathname, JSON.stringify(out, null, 2));

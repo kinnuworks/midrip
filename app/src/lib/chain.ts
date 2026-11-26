@@ -22,7 +22,8 @@ export const decode = <T,>(name: string, data: Uint8Array | null | undefined): T
 const pda = (...seeds: Uint8Array[]) => PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
 const enc = (s: string) => new TextEncoder().encode(s);
 export const configPda = pda(enc("config"));
-export const playerPda = (w: PublicKey) => pda(enc("player"), w.toBytes());
+export const playerPda = (w: PublicKey) => pda(enc("player2"), w.toBytes());
+export const mintPda = (tier: number) => pda(enc("card-mint"), Uint8Array.of(tier));
 export const tablePda = (id: number) => pda(enc("table"), Uint8Array.of(id));
 export const sealedPda = (id: number) => pda(enc("sealed"), Uint8Array.of(id));
 
@@ -67,7 +68,7 @@ export async function send(conn: Connection, tx: Transaction, kp: Keypair): Prom
 // ---- account shapes (snake_case, as the IDL coder returns them) ----
 type BNish = { toString(): string };
 export interface Config { base_weights: number[]; base_values: BNish[]; hit_weights: number[]; hit_values: BNish[]; ev_base_milli: BNish; ev_hit_milli: BNish; payout_bps: number; pack_price: BNish; start_bps: number; floor_bps: number; listing_slots: BNish; grace_slots: BNish; starting_chips: BNish }
-export interface Player { wallet: PublicKey; chips: BNish; cards: number[]; packs_opened: number }
+export interface Player { wallet: PublicKey; chips: BNish; cards: number[]; packs_opened: number; withdrawn: number[] }
 export interface Listing { list_slot: BNish; start_price: BNish; floor_price: BNish; duration_slots: BNish; end_slot: BNish; ev_rest_milli: BNish; cards_left: number }
 export interface Sale { price: BNish; slot: BNish; list_slot: BNish; from: PublicKey; to: PublicKey; cards_left: number }
 export interface Table { id: number; state: number; nonce: BNish; opener: PublicKey; holder: PublicKey; price_paid: BNish; opened_slot: BNish; revealed: number[]; revealed_count: number; hit_revealed: boolean; commitment: number[]; randomness: number[]; listing: Listing; last_sale: Sale; sales_count: number }

@@ -67,7 +67,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -90,7 +91,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -212,6 +214,210 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "claim_cards",
+      "docs": [
+        "Mint the cards a player has withdrawn (as last committed to Solana) and not yet claimed."
+      ],
+      "discriminator": [
+        54,
+        174,
+        156,
+        216,
+        198,
+        199,
+        206,
+        110
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "player",
+          "docs": [
+            "delegated, by the delegation program); deserialized and checked in the handler."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_auth",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "writable": true
+        },
+        {
+          "name": "token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "wallet"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tier",
+          "type": "u8"
+        }
+      ]
     },
     {
       "name": "create_sealed_permission",
@@ -448,7 +654,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -866,6 +1073,86 @@
       ]
     },
     {
+      "name": "init_mint",
+      "docs": [
+        "One SPL mint per rarity, minted only by this program."
+      ],
+      "discriminator": [
+        126,
+        176,
+        233,
+        16,
+        66,
+        117,
+        209,
+        125
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_auth",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  105,
+                  110,
+                  116,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "writable": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "tier",
+          "type": "u8"
+        }
+      ]
+    },
+    {
       "name": "init_player",
       "discriminator": [
         114,
@@ -896,7 +1183,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -1066,7 +1354,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -1283,7 +1572,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -1330,7 +1620,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -1401,7 +1692,8 @@
                   97,
                   121,
                   101,
-                  114
+                  114,
+                  50
                 ]
               },
               {
@@ -1547,9 +1839,96 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "withdraw_cards",
+      "docs": [
+        "Take cards out of play so they can be claimed as SPL tokens on Solana after the next settle."
+      ],
+      "discriminator": [
+        15,
+        81,
+        105,
+        147,
+        46,
+        184,
+        175,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "wallet",
+          "signer": true
+        },
+        {
+          "name": "player",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  108,
+                  97,
+                  121,
+                  101,
+                  114,
+                  50
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "tier",
+          "type": "u8"
+        },
+        {
+          "name": "count",
+          "type": "u32"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "ClaimRecord",
+      "discriminator": [
+        57,
+        229,
+        0,
+        9,
+        65,
+        62,
+        96,
+        7
+      ]
+    },
     {
       "name": "Config",
       "discriminator": [
@@ -1666,6 +2045,27 @@
     }
   ],
   "types": [
+    {
+      "name": "ClaimRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed",
+            "type": {
+              "array": [
+                "u32",
+                5
+              ]
+            }
+          }
+        ]
+      }
+    },
     {
       "name": "Config",
       "type": {
@@ -1887,6 +2287,18 @@
           {
             "name": "bump",
             "type": "u8"
+          },
+          {
+            "name": "withdrawn",
+            "docs": [
+              "Cards taken out of play to be minted as SPL tokens on Solana; only ever grows."
+            ],
+            "type": {
+              "array": [
+                "u32",
+                5
+              ]
+            }
           }
         ]
       }
