@@ -1,0 +1,129 @@
+{
+  "table": 3,
+  "steps": [
+    {
+      "name": "open_pack",
+      "sig": "4CqjaG7Zez5DrfojGWWDJwHRHCjtsonMAVcdTZJ1nERsK1wPhKC74srZyMTBqzoTGJwUcJp2zaiGnKMLQ3pFoNMc",
+      "err": null,
+      "ms": 171
+    },
+    {
+      "name": "reveal",
+      "sig": "5Gg5yzRoP3EqPY4QmHAjzvGBfTEj3tRNowSRwYLcge6qWjQ7G3ctxBir898V4ZmZBJfa5VoC8rkmriaZ5ctRyb77",
+      "err": null,
+      "ms": 153,
+      "pos": 0
+    },
+    {
+      "name": "reveal",
+      "sig": "yKLW86XiHPSsgF8UVhYbX38jAPvvgeHKxGd6vbGPUYbLjA6ofpxrGpVP3ddhawncMhu1fAhbsiCyaJnzREjjKav",
+      "err": null,
+      "ms": 163,
+      "pos": 1
+    },
+    {
+      "name": "list_rest",
+      "sig": "4KQDvos6mSfRNuwF38g49Z1PwNp6LYuCeCLhz5QSZoWmKKVNdKvkiiGcg2zPbSbhya4LE25ZgokPkKXoTJ8xi6J7",
+      "err": null,
+      "ms": 179
+    },
+    {
+      "name": "buy_rest",
+      "sig": "44zotzvxnDwi6QvmfrgHmgpwYVCvxo9bCKCK6f1UBtRTuR11fpga2AuBoURdaMZr4J4FBp3oXxFogrZyQPNYECiM",
+      "err": null,
+      "ms": 174
+    },
+    {
+      "name": "reveal",
+      "sig": "5p6CTHnwCsEmpdCC4XhHskbUyKmAHivSuNtywcbFrUP9EHQKYsyyZSvUozd4vB8pBkGeJmJzpdYCjfuFMUif8QNt",
+      "err": null,
+      "ms": 163,
+      "pos": 2
+    },
+    {
+      "name": "reveal",
+      "sig": "t8gtbr9YqZ58uLezvXxG7Qq9hRt7br6m7dHuGA2Vv8ahPkUd4WTfBrPy2JXzjAt49cKMQLyuPd9Sdj8LnU9u3Ls",
+      "err": null,
+      "ms": 179,
+      "pos": 3
+    },
+    {
+      "name": "reveal",
+      "sig": "2FSbnZqnxrz38v368guVJDYwuKA9wzombic7hUXjCr6K7m324hEnPQmd1H1sCvyvaP441a8NMx3KhF9oiVRfLXTT",
+      "err": null,
+      "ms": 323,
+      "pos": 4
+    },
+    {
+      "name": "reveal",
+      "sig": "4EM76Tq3ZMQyA8NaBycaKhCJR8h41cSqif2PZokT4e2bVsEUjPF2PkkwxD6p21scfxLZaChb1mstFjvZ8PWwN4NM",
+      "err": null,
+      "ms": 155,
+      "pos": 5
+    },
+    {
+      "name": "settle",
+      "sig": "25VwentEEiauABxYLhWdBp89sgiCdbq1WDHSCwYyegQoXLNPPkyX12w5TZGsumKBY9vgFPjmKPHJ2bv7dUfSNLmB",
+      "err": null,
+      "ms": 164
+    }
+  ],
+  "checks": {
+    "vrfCallbackMs": 222,
+    "sealedReadStranger": "null",
+    "sealedReadOpener": "null",
+    "tableSigsSeenByOpener": 2,
+    "callbackSig": "f4zGrHaJcigr7BdPcdg85EayTzcM7p387xDGFALEC3WopiuFq53zohz3AyhVCTwg9KddVwQVDLGMNHft8QiUDqB",
+    "callbackTx_stranger": "VISIBLE (22 logs)",
+    "callbackTx_opener": "VISIBLE (22 logs)",
+    "sealedSigsStranger": 0,
+    "evRestMatches": true,
+    "salePriceMatchesClock": true,
+    "sale": {
+      "price": "353",
+      "slot": "896513769",
+      "slotsAfterList": "65"
+    },
+    "verify": {
+      "ok": true,
+      "tiers": [
+        0,
+        0,
+        0,
+        2,
+        1,
+        0
+      ],
+      "hitPos": 3,
+      "commitmentOk": true,
+      "revealedOk": true
+    },
+    "strangerPredictedCorrectly": false,
+    "players": {
+      "A": {
+        "chips": "2025",
+        "cards": [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "B": {
+        "chips": "1647",
+        "cards": [
+          2,
+          1,
+          1,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "players": [
+    "89JEcaYhSwLbRRU1rQTCRHFTn3cgbEFmvSn9FPxgaFE8",
+    "33XGYBd8SxWjHFk3eQ6p8gnqpc4nyaMKbg9SKPoGrao4"
+  ]
+}
