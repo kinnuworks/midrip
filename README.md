@@ -2,9 +2,9 @@
 
 ![Mid-Rip: the sealed rest of a pack on a price clock that drops every rollup block](design/out/readme-hero.png)
 
-Buy the pack mid-rip. Mid-Rip is a card-pack game on Solana where the unopened rest of a pack can change hands while someone is opening it.
+Buy the pack mid-rip. Mid-Rip is a card-pack game on Solana where the unopened rest of a pack can change hands while someone is opening (ripping) it: the sealed cards go up for sale in a descending-price auction that drops every rollup block, about 15 seconds from start to floor.
 
-It needs MagicBlock because MagicBlock VRF draws each pack into an account on a private Ephemeral Rollup that nobody can read, the developer included, and the sealed rest sells on a price clock that drops every 10 ms rollup block.
+It needs MagicBlock because MagicBlock VRF draws each pack into an account on a private Ephemeral Rollup that no wallet can read, the developer included; only the program can, and it turns one card face up each time the holder asks. The auction drops every 10 ms rollup block.
 
 Live at https://midrip.vercel.app (Solana devnet, play chips, no wallet needed).
 
