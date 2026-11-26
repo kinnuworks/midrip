@@ -33,9 +33,10 @@ test("join, open, rip, sell the sealed rest on the clock, peek, get bought, veri
 
   // The labelled demo bot buys the sealed rest once the clock drops below its average value.
   const id = (await mine.locator(".thead span").first().innerText()).trim();
-  const table = page.locator("article.table", { hasText: id }).first();
+  const table = page.locator("article.table").filter({ has: page.locator(".thead span", { hasText: new RegExp(`^${id}$`) }) });
   await expect(table.getByText("held by the demo bot")).toBeVisible({ timeout: 60_000 });
   await expect(table.getByText(/Last sale: rest of pack sold for \d+ chips at block \d+/)).toBeVisible();
+  await expect(page.getByText(/Sold: The demo bot paid you \d+ chips for the sealed rest/)).toBeVisible();
 
   const done = page.locator("article.table.done").first();
   await expect(done).toBeVisible({ timeout: 60_000 });

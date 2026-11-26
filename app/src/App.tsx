@@ -41,6 +41,8 @@ export default function App() {
   botOnRef.current = botOn;
   const cfgRef = useRef<Config | null>(null);
   cfgRef.current = config;
+  const prevTables = useRef<Record<number, Table>>({});
+  const [notice, setNotice] = useState<string | null>(null);
   const addReceipt = (r: Receipt) => setReceipts((xs) => [r, ...xs].slice(0, 30));
 
   // Connect to the private rollup with a token signed by the burner (no popup).
@@ -75,6 +77,15 @@ export default function App() {
         if (stop) return;
         const next: Record<number, Table> = {};
         tableIds.forEach((id, i) => { const t = decode<Table>("Table", infos[i]?.data); if (t) next[id] = t; });
+        const prev = prevTables.current;
+        for (const [k, t] of Object.entries(next)) {
+          const before = prev[Number(k)];
+          if (before && before.holder.equals(me.publicKey) && !t.holder.equals(me.publicKey) && big(t.last_sale.slot) > big(before.last_sale.slot)) {
+            const buyer = botRef.current && t.holder.equals(botRef.current.kp.publicKey) ? "The demo bot" : short(t.holder.toBase58());
+            setNotice(`Sold: ${buyer} paid you ${big(t.last_sale.price).toString()} chips for the sealed rest on table ${k} at block ${big(t.last_sale.slot).toString()}, ${(big(t.last_sale.slot) - big(t.last_sale.list_slot)).toString()} blocks after you listed it.`);
+          }
+        }
+        prevTables.current = next;
         setTables(next);
         const bp = bot?.ready ? decode<Player>("Player", infos[tableIds.length]?.data) : null;
         setBotPlayer(bp);
@@ -172,7 +183,7 @@ export default function App() {
         <p className="lede">Card packs drawn by MagicBlock VRF inside a private rollup that nobody can read. Reveal a card, or put the sealed rest on a price clock that drops every 10 ms block, and anyone can buy it mid-rip.</p>
         <ol className="how">
           <li>Open a pack: MagicBlock VRF draws 6 cards (one is a guaranteed hit) into an account only the program can read.</li>
-          <li>Rip or sell: reveal cards one at a time, or put the still-sealed rest on a clock that drops every rollup block.</li>
+          <li>Rip or sell: rip (reveal) cards one at a time, or put the still-sealed rest on a clock that drops every rollup block.</li>
           <li>Buy mid-rip: anyone can stop the clock and keep ripping. When the pack ends, everything settles to Solana and every card checks against the VRF output.</li>
         </ol>
       </header>
@@ -189,11 +200,15 @@ export default function App() {
       </section>
 
       {error && <div className="error" role="alert">{error}</div>}
+      {notice && <div className="notice" role="status">{notice} <button onClick={() => setNotice(null)}>OK</button></div>}
 
       {!er && !error && <p>Connecting to MagicBlock's private rollup…</p>}
 
       <section className="tables">
-        {tableIds.map((id) => {
+        {[...tableIds].sort((a, b) => {
+          const rank = (id: number) => { const t = tables[id]; if (!t) return 9; if (t.holder.equals(me.publicKey) && t.state >= 1 && t.state <= 3) return 0; if (t.state === 3) return 1; if (t.state === 2 || t.state === 1) return 2; if (t.state === 0) return 3; return 4; };
+          return rank(a) - rank(b) || a - b;
+        }).map((id) => {
           const t = tables[id];
           if (!t) return null;
           const state = forced && STATE.includes(forced as (typeof STATE)[number]) ? forced : STATE[t.state];
@@ -228,6 +243,7 @@ export default function App() {
                   <div className="price">{expired ? "unsold" : p.toString()} <small>chips</small></div>
                   <div className="bar"><div style={{ width: `${(1 - frac) * 100}%` }} /></div>
                   <div className="clockmeta">Listed at block {big(L.list_slot).toString()} · {elapsed.toString()} blocks ago · floor {big(L.floor_price).toString()}</div>
+                  <div className="clockmeta">The clock starts at 125% of the sealed rest's average value ({milliToChips(big(L.ev_rest_milli))}) and falls to 85% over {big(L.duration_slots).toString()} blocks. Below the average is a bargain on paper.</div>
                 </div>
               )}
               {big(t.last_sale.slot) > 0n && (
