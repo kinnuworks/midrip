@@ -20,6 +20,8 @@ test("join, open, rip, sell the sealed rest on the clock, peek, get bought, veri
     await expect(mine.locator(".card:not(.sealed)")).toHaveCount(faceUp + 1, { timeout: 15_000 });
   }
 
+  // The labelled demo bot must be in the game before the clock starts, or nobody is there to buy.
+  await expect(page.getByText(/Bot is playing/)).toBeVisible({ timeout: 90_000 });
   await mine.getByRole("button", { name: "Sell the sealed rest" }).click();
   const price = mine.locator(".clock .price");
   await expect(price).toBeVisible({ timeout: 15_000 });
@@ -38,10 +40,13 @@ test("join, open, rip, sell the sealed rest on the clock, peek, get bought, veri
   await expect(table.getByText(/Last sale: rest of pack sold for \d+ chips at block \d+/)).toBeVisible();
   await expect(page.getByText(/Sold: The demo bot paid you \d+ chips for the sealed rest/)).toBeVisible();
 
-  const done = page.locator("article.table.done").first();
-  await expect(done).toBeVisible({ timeout: 60_000 });
+  // Tables re-sort as their state changes, so pin the finished table by its name.
+  const anyDone = page.locator("article.table.done").first();
+  await expect(anyDone).toBeVisible({ timeout: 60_000 });
+  const doneId = (await anyDone.locator(".thead span").first().innerText()).trim();
+  const done = page.locator("article.table").filter({ has: page.locator(".thead span", { hasText: new RegExp(`^${doneId}$`) }) });
   await done.getByRole("button", { name: "Verify this pack" }).click();
-  await expect(done.getByText(/Verified: all 6 cards match/)).toBeVisible();
+  await expect(done.getByText(/Verified: all 6 cards match/)).toBeVisible({ timeout: 10_000 });
 
   // The two cards I revealed before selling are mine: mint them as SPL tokens in this wallet on Solana.
   await page.getByRole("button", { name: "Move my cards to my wallet" }).click();

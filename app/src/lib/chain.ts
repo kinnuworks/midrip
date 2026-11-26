@@ -94,18 +94,21 @@ export async function ensurePlayer(kp: Keypair, onStep: (s: string) => void = ()
     if (!r.ok) throw new Error("funding failed: " + (await r.text()));
     await waitFor(async () => (await base.getBalance(kp.publicKey)) >= 10_000_000);
   }
-  if (!info) {
+  // A devnet transaction can be dropped; resend (fresh blockhash) up to three times.
+  for (let attempt = 0; !info && attempt < 3; attempt++) {
     onStep("Creating your player account on Solana…");
     const r = await send(base, await pg.methods.initPlayer().accounts({ wallet: kp.publicKey }).transaction(), kp);
     out.push(r);
-    if (r.err) throw new Error("player setup failed: " + JSON.stringify(r.err));
-    if (!(await waitFor(async () => !!(await acct())))) throw new Error("player account did not appear on Solana");
-    info = await acct();
+    if (r.err && r.err !== "timeout") throw new Error("player setup failed: " + JSON.stringify(r.err));
+    if (await waitFor(async () => !!(await acct()), 25)) info = await acct();
   }
-  onStep("Moving it into MagicBlock's private rollup…");
-  const r = await send(base, await pg.methods.delegatePlayer().accounts({ wallet: kp.publicKey, validator: TEE_VALIDATOR }).transaction(), kp);
-  out.push(r);
-  if (r.err) throw new Error("delegation failed: " + JSON.stringify(r.err));
-  if (!(await waitFor(async () => !(await acct())?.owner.equals(PROGRAM_ID)))) throw new Error("delegation did not land");
-  return out;
+  if (!info) throw new Error("player account did not appear on Solana");
+  for (let attempt = 0; attempt < 3; attempt++) {
+    onStep("Moving it into MagicBlock's private rollup…");
+    const r = await send(base, await pg.methods.delegatePlayer().accounts({ wallet: kp.publicKey, validator: TEE_VALIDATOR }).transaction(), kp);
+    out.push(r);
+    if (r.err && r.err !== "timeout") throw new Error("delegation failed: " + JSON.stringify(r.err));
+    if (await waitFor(async () => !(await acct())?.owner.equals(PROGRAM_ID), 25)) return out;
+  }
+  throw new Error("delegation did not land");
 }
