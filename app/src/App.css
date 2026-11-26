@@ -29,8 +29,8 @@
 .thead { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; }
 .holder { margin-left: auto; }
 .cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--cards-gap, 6px); }
-.card { aspect-ratio: 5 / 7; display: flex; align-items: flex-end; justify-content: center; padding: 6px 2px; overflow: hidden; text-align: center; line-height: 1.1; min-width: 0; }
-.card-name { font-size: inherit; overflow-wrap: anywhere; }
+.card { container-type: inline-size; aspect-ratio: 5 / 7; display: flex; align-items: flex-end; justify-content: center; padding: 6px 2px; overflow: hidden; text-align: center; line-height: 1.1; min-width: 0; }
+.card-name { font-size: min(1em, max(10px, 18cqi)); white-space: nowrap; overflow: hidden; text-overflow: clip; max-width: 100%; }
 .price small { font-size: max(15px, 0.2em); letter-spacing: 0; font-weight: 400; }
 .bar { height: 6px; background: var(--bar-bg, var(--rule)); overflow: hidden; }
 .bar div { height: 100%; background: var(--bar-fg, var(--ink)); transition: width 150ms linear; }
