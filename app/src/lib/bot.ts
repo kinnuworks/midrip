@@ -68,7 +68,7 @@ export class Bot {
       if (t.state === 2) {
         if (t.revealed_count < 2 || t.sales_count > 0 || big(t.listing.list_slot) > 0n) {
           const r = await this.act("bot reveals", id, () => pg.methods.reveal().accounts({ holder: this.kp.publicKey, table: tablePda(id), sealed: sealedPda(id) }).transaction());
-          if (r && !r.err && t.revealed_count + 1 === PACK_SIZE) await this.act("bot settles to Solana", id, () => pg.methods.settle().accounts({ payer: this.kp.publicKey, table: tablePda(id) }).remainingAccounts([playerPda(this.kp.publicKey)].map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }))).transaction());
+          if (r && !r.err && t.revealed_count + 1 === PACK_SIZE && big(t.nonce) <= 9n) await this.act("bot settles the table to Solana", id, () => pg.methods.settle().accounts({ payer: this.kp.publicKey, table: tablePda(id) }).transaction());
           return;
         }
         return void (await this.act("bot lists the sealed rest", id, () => pg.methods.listRest().accounts({ holder: this.kp.publicKey, table: tablePda(id) }).transaction()));

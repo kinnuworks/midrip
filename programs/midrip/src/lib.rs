@@ -382,6 +382,25 @@ pub mod midrip {
         Ok(())
     }
 
+    /// Commit only player accounts to Solana (for tables past MagicBlock's 10-commit cap).
+    pub fn settle_players<'info>(ctx: Context<'info, SettlePlayers<'info>>) -> Result<()> {
+        let mut infos = vec![];
+        for a in ctx.remaining_accounts.iter() {
+            require_keys_eq!(*a.owner, crate::ID, MidripError::BadAccount);
+            infos.push(a.clone());
+        }
+        require!(!infos.is_empty(), MidripError::BadAccount);
+        MagicIntentBundleBuilder::new(
+            ctx.accounts.payer.to_account_info(),
+            ctx.accounts.magic_context.to_account_info(),
+            ctx.accounts.magic_program.to_account_info(),
+        )
+        .commit(&infos)
+        .build_and_invoke()?;
+        msg!("settle_players accounts={} slot={}", infos.len(), Clock::get()?.slot);
+        Ok(())
+    }
+
     /// Commit and hand the public table and player accounts back to Solana.
     pub fn settle_and_undelegate<'info>(ctx: Context<'info, Settle<'info>>) -> Result<()> {
         let t = &ctx.accounts.table;
@@ -702,6 +721,13 @@ pub struct SellCards<'info> {
     pub player: Account<'info, Player>,
     #[account(seeds = [CONFIG_SEED], bump = config.bump)]
     pub config: Account<'info, Config>,
+}
+
+#[commit]
+#[derive(Accounts)]
+pub struct SettlePlayers<'info> {
+    #[account(mut)]
+    pub payer: Signer<'info>,
 }
 
 #[commit]

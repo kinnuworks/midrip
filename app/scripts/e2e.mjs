@@ -4,7 +4,7 @@ import { base, loadKeypair, program, configPda, tablePda, sealedPda, playerPda, 
 import { verifyPack, evRestMilli, clockPrice, hex, drawPack } from "../src/lib/packmath.ts";
 import fs from "fs";
 const relayer = loadKeypair(new URL("../../.kit/keys/relayer.json", import.meta.url).pathname);
-const TABLE = Number(process.env.TABLE || 0);
+let TABLE = process.env.TABLE !== undefined ? Number(process.env.TABLE) : -1;
 const out = { table: TABLE, steps: [], checks: {} };
 const step = (name, r, extra = {}) => { out.steps.push({ name, sig: r.sig, err: r.err, ms: r.ms, ...extra }); log(name, r.sig, JSON.stringify(r.err), r.ms + "ms", JSON.stringify(extra)); if (r.err) throw new Error(name + " failed " + JSON.stringify(r.err)); };
 
@@ -20,6 +20,15 @@ for (const k of [A, B]) {
 const [ea, eb, es] = [await teeConn(A), await teeConn(B), await teeConn(S)];
 for (const k of [A, B]) for (let i = 0; i < 40 && !(await ea.getAccountInfo(playerPda(k.publicKey))); i++) await sleep(300);
 const pa = program(ea, A), pb = program(eb, B);
+if (TABLE < 0) {
+  const ids = Array.from({ length: 32 }, (_, i) => i);
+  const infos = await ea.getMultipleAccountsInfo(ids.map(tablePda));
+  const free = ids.filter((i) => { const x = decode("Table", infos[i]); return x && (x.state === 0 || x.state === 4); });
+  if (!free.length) throw new Error("no free table");
+  TABLE = free[Math.floor(Math.random() * free.length)];
+  out.table = TABLE;
+}
+log("table", TABLE);
 const t = tablePda(TABLE), s = sealedPda(TABLE);
 const readTable = async (c = ea) => decode("Table", await c.getAccountInfo(t));
 let tb = await readTable();
@@ -85,7 +94,7 @@ out.checks.players = { A: { chips: plA.chips.toString(), cards: plA.cards }, B: 
 log("A", JSON.stringify(out.checks.players.A), "B", JSON.stringify(out.checks.players.B));
 
 // 5. settle: commit table + both players to Solana
-const st = await pa.methods.settle().accounts({ payer: A.publicKey, table: t }).remainingAccounts([playerPda(A.publicKey), playerPda(B.publicKey)].map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }))).transaction();
+const st = await (BigInt(tb.nonce.toString()) <= 9n ? pa.methods.settle().accounts({ payer: A.publicKey, table: t }) : pa.methods.settlePlayers().accounts({ payer: A.publicKey })).remainingAccounts([playerPda(A.publicKey), playerPda(B.publicKey)].map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }))).transaction();
 step("settle", await sendEr(ea, st, [A]));
 out.players = [A.publicKey.toBase58(), B.publicKey.toBase58()];
 fs.mkdirSync(new URL("../../evidence/runs/", import.meta.url).pathname, { recursive: true });

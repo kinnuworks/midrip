@@ -1514,6 +1514,39 @@
         }
       ],
       "args": []
+    },
+    {
+      "name": "settle_players",
+      "docs": [
+        "Commit only player accounts to Solana (for tables past MagicBlock's 10-commit cap)."
+      ],
+      "discriminator": [
+        108,
+        34,
+        237,
+        154,
+        248,
+        75,
+        172,
+        123
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "magic_program",
+          "address": "Magic11111111111111111111111111111111111111"
+        },
+        {
+          "name": "magic_context",
+          "writable": true,
+          "address": "MagicContext1111111111111111111111111111111"
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [

@@ -138,8 +138,9 @@ export default function App() {
   const settle = async (id: number, t: Table) => {
     if (!pg) return;
     const players = [...new Set([t.opener.toBase58(), t.holder.toBase58(), me.publicKey.toBase58()])].map((w) => playerPda(new PublicKey(w)));
-    const accounts = big(t.nonce) <= 9n ? players : [playerPda(me.publicKey)];
-    await run("settle to Solana", id, () => pg.methods.settle().accounts({ payer: me.publicKey, table: tablePda(id) }).remainingAccounts(accounts.map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }))).transaction());
+    const metas = players.map((pubkey) => ({ pubkey, isSigner: false, isWritable: true }));
+    if (big(t.nonce) <= 9n) await run("settle to Solana", id, () => pg.methods.settle().accounts({ payer: me.publicKey, table: tablePda(id) }).remainingAccounts(metas).transaction());
+    else await run("settle to Solana", id, () => pg.methods.settlePlayers().accounts({ payer: me.publicKey }).remainingAccounts(metas).transaction());
   };
   const verify = (id: number, t: Table) => config && setVerified((v) => ({ ...v, [id]: verifyPack({ randomness: t.randomness, commitment: t.commitment, revealed: t.revealed, nonce: big(t.nonce) }, config.base_weights, config.hit_weights) }));
 
