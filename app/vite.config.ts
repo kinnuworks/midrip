@@ -10,7 +10,7 @@ function localApi(): Plugin {
         let body = "";
         req.on("data", (c) => (body += c));
         req.on("end", async () => {
-          const mod = await server.ssrLoadModule("/api/join.ts");
+          const mod = await server.ssrLoadModule("/api/join.js");
           const out = { code: 200, json: (b: unknown) => { res.statusCode = out.code; res.setHeader("content-type", "application/json"); res.end(JSON.stringify(b)); } };
           await mod.default({ method: req.method, body, headers: req.headers }, { status: (n: number) => { out.code = n; return out; } });
         });
