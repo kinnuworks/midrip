@@ -6,7 +6,7 @@ import { verifyPack } from "../src/lib/packmath.ts";
 import fs from "fs";
 
 const N = Number(process.env.PACKS || 60);
-const relayer = loadKeypair(new URL("../../.kit/keys/relayer.json", import.meta.url).pathname);
+const relayer = loadKeypair(process.env.RELAYER_KEYPAIR || new URL("../../.kit/keys/relayer.json", import.meta.url).pathname);
 const cfg = decode("Config", await base.getAccountInfo(configPda()));
 const price = Number(cfg.pack_price.toString());
 const values = [...cfg.base_values, ...cfg.hit_values].map((v) => Number(v.toString()));

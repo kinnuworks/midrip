@@ -147,4 +147,4 @@ cd app && npm install && npm run dev
 cd app && node scripts/e2e.mjs
 ```
 
-The scripts need a funded devnet keypair at `~/.config/solana/id.json` and a relayer keypair at `.kit/keys/relayer.json` (setup and end-to-end) or `RELAYER_SECRET` (web app).
+The scripts need a funded devnet keypair at `~/.config/solana/id.json` (the admin for setup) and a funded devnet keypair for the relayer that pays new players' setup, passed as `RELAYER_KEYPAIR=/path/to/keypair.json` (end-to-end and evidence runs) or as `RELAYER_SECRET` holding its JSON secret key (web app).

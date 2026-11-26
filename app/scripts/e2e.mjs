@@ -3,7 +3,7 @@
 import { base, loadKeypair, program, configPda, tablePda, sealedPda, playerPda, mintPda, TEE_VALIDATOR, VRF_EPHEMERAL_QUEUE, teeConn, sendEr, decode, log, sleep, fund, Keypair } from "./mr.mjs";
 import { verifyPack, evRestMilli, clockPrice, hex, drawPack } from "../src/lib/packmath.ts";
 import fs from "fs";
-const relayer = loadKeypair(new URL("../../.kit/keys/relayer.json", import.meta.url).pathname);
+const relayer = loadKeypair(process.env.RELAYER_KEYPAIR || new URL("../../.kit/keys/relayer.json", import.meta.url).pathname);
 let TABLE = process.env.TABLE !== undefined ? Number(process.env.TABLE) : -1;
 const out = { table: TABLE, steps: [], checks: {} };
 const step = (name, r, extra = {}) => { out.steps.push({ name, sig: r.sig, err: r.err, ms: r.ms, ...extra }); log(name, r.sig, JSON.stringify(r.err), r.ms + "ms", JSON.stringify(extra)); if (r.err) throw new Error(name + " failed " + JSON.stringify(r.err)); };
