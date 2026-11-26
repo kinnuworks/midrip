@@ -29,6 +29,8 @@ pub const SEALED_SEED: &[u8] = b"sealed";
 pub const NOT_REVEALED: u8 = 255;
 /// If the VRF callback never lands, the buyer can be refunded after this many rollup slots.
 pub const DRAW_TIMEOUT_SLOTS: u64 = 30_000;
+/// A pack untouched this long (about 10 minutes of rollup blocks) can be closed by anyone.
+pub const STALE_SLOTS: u64 = 60_000;
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -330,6 +332,23 @@ pub mod midrip {
         p.chips = p.chips.saturating_add(table.price_paid);
         table.state = TableState::Idle as u8;
         msg!("refund table={} nonce={} slot={}", table.id, table.nonce, slot);
+        Ok(())
+    }
+
+    /// Anyone can close a pack whose holder walked away. The unrevealed cards are forfeited, and the
+    /// randomness is published so the whole pack can still be checked against its commitment.
+    pub fn abandon_stale(ctx: Context<AbandonStale>) -> Result<()> {
+        let table = &mut ctx.accounts.table;
+        let st = table.state;
+        require!(st == TableState::Ripping as u8 || st == TableState::Listed as u8, MidripError::WrongState);
+        let slot = Clock::get()?.slot;
+        let last = table.opened_slot.max(table.listing.list_slot).max(table.last_sale.slot);
+        require!(slot > last + STALE_SLOTS, MidripError::ListingActive);
+        let sealed = &ctx.accounts.sealed;
+        require!(sealed.nonce == table.nonce, MidripError::WrongState);
+        table.randomness = sealed.randomness;
+        table.state = TableState::Done as u8;
+        msg!("abandon table={} nonce={} revealed={} slot={}", table.id, table.nonce, table.revealed_count, slot);
         Ok(())
     }
 
@@ -666,6 +685,14 @@ pub struct RefundStuck<'info> {
     pub table: Account<'info, Table>,
     #[account(mut, seeds = [PLAYER_SEED, opener_player.wallet.as_ref()], bump = opener_player.bump)]
     pub opener_player: Account<'info, Player>,
+}
+
+#[derive(Accounts)]
+pub struct AbandonStale<'info> {
+    #[account(mut, seeds = [TABLE_SEED, &[table.id]], bump = table.bump)]
+    pub table: Account<'info, Table>,
+    #[account(seeds = [SEALED_SEED, &[table.id]], bump = sealed.bump)]
+    pub sealed: Account<'info, Sealed>,
 }
 
 #[derive(Accounts)]

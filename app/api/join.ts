@@ -2,7 +2,7 @@
 // delegation fees). Play itself is free on the rollup. Devnet only; the relayer key lives in env.
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
 
-const RPC = "https://api.devnet.solana.com";
+const RPC = "https://rpc.magicblock.app/devnet";
 const GRANT = 15_000_000; // 0.015 devnet SOL
 const MIN_BALANCE = 10_000_000;
 const recent = new Map<string, number>();

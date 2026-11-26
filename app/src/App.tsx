@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PublicKey, type Connection, type Transaction } from "@solana/web3.js";
 import {
-  base, big, configPda, decode, EXPLORER, EXPLORER_ADDR, loadBurner, PROGRAM_ID, playerPda, program, sealedPda, send, STATE,
-  tablePda, teeConnection, TEE_VALIDATOR, VRF_EPHEMERAL_QUEUE, type Config, type Player, type SendResult, type Table,
+  base, big, configPda, decode, ensurePlayer, EXPLORER, EXPLORER_ADDR, loadBurner, PROGRAM_ID, playerPda, program, sealedPda, send, STATE,
+  tablePda, teeConnection, VRF_EPHEMERAL_QUEUE, type Config, type Player, type SendResult, type Table,
 } from "./lib/chain";
 import { clockPrice, evRestMilli, PACK_SIZE, TIER_NAMES, verifyPack, type VerifyResult } from "./lib/packmath";
+import { Bot } from "./lib/bot";
 import "./App.css";
 
 const MAX_TABLES = 32;
 const short = (s: string) => `${s.slice(0, 4)}…${s.slice(-4)}`;
 const milliToChips = (m: bigint) => (Number(m) / 1000).toFixed(1);
 
-interface Receipt { action: string; table?: number; sig: string; ms: number; slot?: number; ok: boolean; note?: string; base?: boolean }
+interface Receipt { action: string; table?: number; sig: string; ms: number; slot?: number; ok: boolean; note?: string; base?: boolean; bot?: boolean }
 
 export default function App() {
   const params = new URLSearchParams(location.search);
@@ -30,7 +31,15 @@ export default function App() {
   const [delegated, setDelegated] = useState(false);
   const [verified, setVerified] = useState<Record<number, VerifyResult>>({});
   const erRef = useRef<Connection | null>(null);
+  const botRef = useRef<Bot | null>(null);
+  const [botOn, setBotOn] = useState(params.get("bot") !== "off");
+  const [botStatus, setBotStatus] = useState("Bot is starting…");
+  const [botPlayer, setBotPlayer] = useState<Player | null>(null);
 
+  const botOnRef = useRef(botOn);
+  botOnRef.current = botOn;
+  const cfgRef = useRef<Config | null>(null);
+  cfgRef.current = config;
   const addReceipt = (r: Receipt) => setReceipts((xs) => [r, ...xs].slice(0, 30));
 
   // Connect to the private rollup with a token signed by the burner (no popup).
@@ -40,6 +49,7 @@ export default function App() {
         const c = await teeConnection(me);
         erRef.current = c;
         setEr(c);
+        botRef.current = new Bot(c, (ev) => addReceipt({ action: ev.action, table: ev.table, sig: ev.r.sig, ms: ev.r.ms, slot: ev.r.slot, ok: !ev.r.err, note: ev.r.err ? JSON.stringify(ev.r.err) : undefined, bot: true }), setBotStatus);
         const cfg = decode<Config>("Config", (await base.getAccountInfo(configPda))?.data);
         setConfig(cfg);
         const infos = await base.getMultipleAccountsInfo(Array.from({ length: MAX_TABLES }, (_, i) => tablePda(i)));
@@ -58,13 +68,20 @@ export default function App() {
     let stop = false;
     const tick = async () => {
       try {
-        const keys = delegated ? [...tableIds.map(tablePda), playerPda(me.publicKey)] : tableIds.map(tablePda);
+        const bot = botRef.current;
+        const keys = [...tableIds.map(tablePda), playerPda(bot ? bot.kp.publicKey : me.publicKey), ...(delegated ? [playerPda(me.publicKey)] : [])];
         const [infos, s] = await Promise.all([er.getMultipleAccountsInfo(keys), er.getSlot()]);
         if (stop) return;
         const next: Record<number, Table> = {};
         tableIds.forEach((id, i) => { const t = decode<Table>("Table", infos[i]?.data); if (t) next[id] = t; });
         setTables(next);
-        if (delegated) setPlayer(decode<Player>("Player", infos[infos.length - 1]?.data));
+        const bp = bot?.ready ? decode<Player>("Player", infos[tableIds.length]?.data) : null;
+        setBotPlayer(bp);
+        if (delegated) setPlayer(decode<Player>("Player", infos[tableIds.length + 1]?.data));
+        if (bot && botOnRef.current && cfgRef.current) {
+          if (!bot.ready) void bot.join();
+          else void bot.step(next, BigInt(s), cfgRef.current, me, bp);
+        }
         setSlot(BigInt(s));
       } catch { /* transient RPC error: next tick retries */ }
     };
@@ -74,7 +91,6 @@ export default function App() {
   }, [er, tableIds, me, delegated]);
 
   const pg = useMemo(() => (er ? program(er, me) : null), [er, me]);
-  const pgBase = useMemo(() => program(base, me), [me]);
 
   const run = useCallback(async (label: string, table: number | undefined, build: () => Promise<Transaction>, onBase = false) => {
     if (!erRef.current) return null;
@@ -94,36 +110,20 @@ export default function App() {
     }
   }, [me]);
 
-  // One-time setup: devnet SOL for rent from our relayer, then create and delegate the player account.
+  // One-time setup: devnet SOL from our relayer, then create and delegate the player account.
   const join = useCallback(async () => {
-    setJoinStep("Getting devnet SOL for setup…");
     setError(null);
     try {
-      const bal = await base.getBalance(me.publicKey);
-      if (bal < 10_000_000) {
-        const r = await fetch("/api/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: me.publicKey.toBase58() }) });
-        if (!r.ok) throw new Error("funding failed: " + (await r.text()));
-      }
-      setJoinStep("Creating your player account on Solana…");
-      const waitFor = async (check: () => Promise<boolean>, tries = 80) => { for (let i = 0; i < tries; i++) { if (await check()) return true; await new Promise((r) => setTimeout(r, 400)); } return false; };
-      if (!(await base.getAccountInfo(playerPda(me.publicKey)))) {
-        await run("join", undefined, () => pgBase.methods.initPlayer().accounts({ wallet: me.publicKey }).transaction(), true);
-        if (!(await waitFor(async () => !!(await base.getAccountInfo(playerPda(me.publicKey)))))) throw new Error("player account did not appear on Solana");
-      }
-      const info = await base.getAccountInfo(playerPda(me.publicKey));
-      if (info && info.owner.equals(PROGRAM_ID)) {
-        setJoinStep("Moving it into MagicBlock's private rollup…");
-        const r = await run("delegate", undefined, () => pgBase.methods.delegatePlayer().accounts({ wallet: me.publicKey, validator: TEE_VALIDATOR }).transaction(), true);
-        if (!r || r.err) throw new Error("delegation failed");
-      }
-      if (!(await waitFor(async () => !(await base.getAccountInfo(playerPda(me.publicKey)))?.owner.equals(PROGRAM_ID)))) throw new Error("delegation did not land");
+      const rs = await ensurePlayer(me, (st) => setJoinStep(st));
+      rs.forEach((r, i) => addReceipt({ action: i === rs.length - 1 ? "delegate to rollup" : "create player", sig: r.sig, ms: r.ms, slot: r.slot, ok: !r.err, base: true }));
+      for (let i = 0; i < 60 && !(await erRef.current?.getAccountInfo(playerPda(me.publicKey))); i++) await new Promise((r) => setTimeout(r, 300));
       setDelegated(true);
     } catch (e) {
       setError(String(e));
     } finally {
       setJoinStep(null);
     }
-  }, [me, pgBase, run]);
+  }, [me]);
 
   const open = (id: number) => pg && run("open pack", id, () => pg.methods.openPack(Math.floor(Math.random() * 255)).accounts({ payer: me.publicKey, table: tablePda(id), sealed: sealedPda(id), oracleQueue: VRF_EPHEMERAL_QUEUE }).transaction());
   const reveal = async (id: number) => {
@@ -162,6 +162,7 @@ export default function App() {
         ) : (
           <button disabled={!!joinStep || !er} onClick={join}>{joinStep ?? "Get 2,000 play chips"}</button>
         )}
+        <label className="botctl"><input type="checkbox" checked={botOn} onChange={(e) => setBotOn(e.target.checked)} /> Demo bot ({botStatus}{botPlayer ? ` · ${big(botPlayer.chips).toString()} chips` : ""})</label>
         <div className="slot">Rollup block <b>{slot.toString()}</b></div>
       </section>
 
@@ -188,7 +189,7 @@ export default function App() {
               <div className="thead">
                 <span>Table {id}</span>
                 <span className="badge">{state}</span>
-                {t.holder.toBase58() !== "11111111111111111111111111111111" && <span className="holder">{mine ? "you hold it" : `held by ${short(t.holder.toBase58())}`}</span>}
+                {t.holder.toBase58() !== "11111111111111111111111111111111" && <span className="holder">{mine ? "you hold it" : botRef.current && t.holder.equals(botRef.current.kp.publicKey) ? "held by the demo bot" : `held by ${short(t.holder.toBase58())}`}</span>}
               </div>
               <div className="cards">
                 {Array.from({ length: PACK_SIZE }, (_, i) => {
@@ -230,11 +231,11 @@ export default function App() {
       </section>
 
       <section className="receipts">
-        <h2>Your transactions</h2>
+        <h2>Transactions (yours and the demo bot's)</h2>
         {receipts.length === 0 && <p>None yet.</p>}
         <ol>
           {receipts.map((r, i) => (
-            <li key={i} className={r.ok ? "" : "bad"}>
+            <li key={i} className={(r.ok ? "" : "bad") + (r.bot ? " bot" : "")}>
               {r.action}{r.table !== undefined ? ` · table ${r.table}` : ""} · {r.ms} ms{r.slot ? ` · block ${r.slot}` : ""} · {r.base ? <a href={EXPLORER(r.sig)} target="_blank" rel="noreferrer">{short(r.sig)}</a> : <code title={r.sig}>{short(r.sig)}</code>}{r.note ? ` · ${r.note}` : ""}
             </li>
           ))}

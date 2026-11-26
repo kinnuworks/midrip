@@ -57,7 +57,7 @@ export function verifyPack(t: { randomness: number[]; commitment: number[]; reve
   if (rnd.every((x) => x === 0)) return { ok: false, tiers: [], hitPos: -1, commitmentOk: false, revealedOk: false, reason: "pack not finished: randomness still sealed" };
   const { tiers, hitPos } = drawPack(rnd, baseWeights, hitWeights);
   const commitmentOk = hex(commitment(rnd, tiers, t.nonce)) === hex(t.commitment);
-  const revealedOk = tiers.every((x, i) => x === t.revealed[i]);
+  const revealedOk = tiers.every((x, i) => t.revealed[i] === 255 || x === t.revealed[i]);
   return { ok: commitmentOk && revealedOk, tiers, hitPos, commitmentOk, revealedOk };
 }
 

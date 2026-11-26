@@ -8,6 +8,33 @@
   },
   "instructions": [
     {
+      "name": "abandon_stale",
+      "docs": [
+        "Anyone can close a pack whose holder walked away. The unrevealed cards are forfeited, and the",
+        "randomness is published so the whole pack can still be checked against its commitment."
+      ],
+      "discriminator": [
+        140,
+        242,
+        5,
+        37,
+        81,
+        253,
+        37,
+        210
+      ],
+      "accounts": [
+        {
+          "name": "table",
+          "writable": true
+        },
+        {
+          "name": "sealed"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "buy_rest",
       "docs": [
         "Any other player buys the sealed rest at the clock price of the current slot."
@@ -100,10 +127,10 @@
         {
           "name": "vrf_program_identity",
           "docs": [
-            "Scoped VRF identity PDA, bound to this program. Its presence as a signer proves",
-            "the callback was issued by the VRF program for this program."
+            "Only MagicBlock's VRF program can sign as this identity, so spoofed randomness is rejected."
           ],
-          "signer": true
+          "signer": true,
+          "address": "4DYhZboBPkBYkvuNFRoJ7RFMz8S4yKUmyC4kF9VYRTDe"
         },
         {
           "name": "table",

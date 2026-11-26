@@ -7,7 +7,7 @@ import { getAuthToken } from "@magicblock-labs/ephemeral-rollups-sdk";
 import idl from "../idl/midrip.json";
 
 export const PROGRAM_ID = new PublicKey(idl.address);
-export const BASE_RPC = "https://api.devnet.solana.com";
+export const BASE_RPC = "https://rpc.magicblock.app/devnet";
 export const TEE = "https://devnet-tee.magicblock.app";
 export const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
 export const VRF_EPHEMERAL_QUEUE = new PublicKey("5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc");
@@ -73,3 +73,34 @@ export interface Sale { price: BNish; slot: BNish; list_slot: BNish; from: Publi
 export interface Table { id: number; state: number; nonce: BNish; opener: PublicKey; holder: PublicKey; price_paid: BNish; opened_slot: BNish; revealed: number[]; revealed_count: number; hit_revealed: boolean; commitment: number[]; randomness: number[]; listing: Listing; last_sale: Sale; sales_count: number }
 export const STATE = ["idle", "drawing", "ripping", "listed", "done"] as const;
 export const big = (v: BNish | number) => BigInt(v.toString());
+
+// One-time setup for any burner: devnet SOL for rent from our relayer, create the player account on
+// Solana, delegate it to MagicBlock's private rollup, and wait until the delegation lands.
+export async function ensurePlayer(kp: Keypair, onStep: (s: string) => void = () => {}): Promise<SendResult[]> {
+  const out: SendResult[] = [];
+  const pg = program(base, kp);
+  const waitFor = async (check: () => Promise<boolean>, tries = 80) => { for (let i = 0; i < tries; i++) { if (await check()) return true; await new Promise((r) => setTimeout(r, 400)); } return false; };
+  const acct = () => base.getAccountInfo(playerPda(kp.publicKey));
+  let info = await acct();
+  if (info && !info.owner.equals(PROGRAM_ID)) return out; // already delegated
+  if ((await base.getBalance(kp.publicKey)) < 10_000_000) {
+    onStep("Getting devnet SOL for setup…");
+    const r = await fetch("/api/join", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ wallet: kp.publicKey.toBase58() }) });
+    if (!r.ok) throw new Error("funding failed: " + (await r.text()));
+    await waitFor(async () => (await base.getBalance(kp.publicKey)) >= 10_000_000);
+  }
+  if (!info) {
+    onStep("Creating your player account on Solana…");
+    const r = await send(base, await pg.methods.initPlayer().accounts({ wallet: kp.publicKey }).transaction(), kp);
+    out.push(r);
+    if (r.err) throw new Error("player setup failed: " + JSON.stringify(r.err));
+    if (!(await waitFor(async () => !!(await acct())))) throw new Error("player account did not appear on Solana");
+    info = await acct();
+  }
+  onStep("Moving it into MagicBlock's private rollup…");
+  const r = await send(base, await pg.methods.delegatePlayer().accounts({ wallet: kp.publicKey, validator: TEE_VALIDATOR }).transaction(), kp);
+  out.push(r);
+  if (r.err) throw new Error("delegation failed: " + JSON.stringify(r.err));
+  if (!(await waitFor(async () => !(await acct())?.owner.equals(PROGRAM_ID)))) throw new Error("delegation did not land");
+  return out;
+}
