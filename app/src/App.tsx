@@ -30,6 +30,7 @@ export default function App() {
   const [joinStep, setJoinStep] = useState<string | null>(null);
   const [delegated, setDelegated] = useState(false);
   const [verified, setVerified] = useState<Record<number, VerifyResult>>({});
+  const [peek, setPeek] = useState<Record<number, string>>({});
   const erRef = useRef<Connection | null>(null);
   const botRef = useRef<Bot | null>(null);
   const [botOn, setBotOn] = useState(params.get("bot") !== "off");
@@ -142,6 +143,21 @@ export default function App() {
     if (big(t.nonce) <= 9n) await run("settle to Solana", id, () => pg.methods.settle().accounts({ payer: me.publicKey, table: tablePda(id) }).remainingAccounts(metas).transaction());
     else await run("settle to Solana", id, () => pg.methods.settlePlayers().accounts({ payer: me.publicKey }).remainingAccounts(metas).transaction());
   };
+  // Ask the private rollup for the sealed account with this browser's own token: it returns nothing.
+  const tryRead = async (id: number) => {
+    if (!erRef.current) return;
+    const t0 = performance.now();
+    const a = await erRef.current.getAccountInfo(sealedPda(id)).catch((e) => String(e));
+    const ms = Math.round(performance.now() - t0);
+    setPeek((p) => ({ ...p, [id]: a === null ? `The rollup returned nothing for sealed account ${short(sealedPda(id).toBase58())} (${ms} ms). Only the program can read it.` : typeof a === "string" ? `Refused: ${a}` : `Readable: ${a.data.length} bytes. This should not happen.` }));
+  };
+  const sellAll = async () => {
+    if (!pg || !player) return;
+    for (let tier = 0; tier < player.cards.length; tier++) {
+      const n = player.cards[tier];
+      if (n > 0) await run(`sell ${n} ${TIER_NAMES[tier]}`, undefined, () => pg.methods.sellCards(tier, n).accounts({ wallet: me.publicKey }).transaction());
+    }
+  };
   const verify = (id: number, t: Table) => config && setVerified((v) => ({ ...v, [id]: verifyPack({ randomness: t.randomness, commitment: t.commitment, revealed: t.revealed, nonce: big(t.nonce) }, config.base_weights, config.hit_weights) }));
 
   const joined = !!player;
@@ -159,7 +175,7 @@ export default function App() {
       <section className="me">
         <div>Your wallet (kept in this browser): <a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">{short(me.publicKey.toBase58())}</a></div>
         {joined ? (
-          <div>Chips: <b>{chips.toString()}</b> · Cards: {player!.cards.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")}</div>
+          <div>Chips: <b>{chips.toString()}</b> · Cards: {player!.cards.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} {player!.cards.some((n) => n > 0) && config && <button disabled={!!busy} onClick={sellAll}>Sell my cards for {player!.cards.reduce((a, n, i) => a + BigInt(n) * big(i < 2 ? config.base_values[i] : config.hit_values[i - 2]), 0n).toString()} chips</button>}</div>
         ) : (
           <button disabled={!!joinStep || !er} onClick={join}>{joinStep ?? "Get 2,000 play chips"}</button>
         )}
@@ -220,7 +236,9 @@ export default function App() {
                 {state === "listed" && !mine && joined && !expired && <button className="buy" disabled={!!busy || chips < p} onClick={() => buy(id, t)}>Buy the rest · {p.toString()}</button>}
                 {state === "listed" && mine && <button disabled={!!busy} onClick={() => cancel(id)}>Keep ripping</button>}
                 {state === "done" && <button onClick={() => verify(id, t)}>Verify this pack</button>}
+                {(state === "ripping" || state === "listed") && <button className="peek" onClick={() => tryRead(id)}>Try to read the sealed cards</button>}
               </div>
+              {peek[id] && (state === "ripping" || state === "listed") && <div className="peekres">{peek[id]}</div>}
               {state === "done" && v && (
                 <div className={`verify ${v.ok ? "ok" : "bad"}`}>
                   {v.ok ? `Verified: all ${PACK_SIZE} cards match the VRF output and the commitment posted before the first reveal.` : `Did not verify: ${v.reason ?? (v.commitmentOk ? "revealed cards differ" : "commitment differs")}`}
