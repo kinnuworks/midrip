@@ -1,0 +1,11 @@
+target/
+node_modules/
+.anchor/
+dist/
+.vercel/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+test-ledger/
