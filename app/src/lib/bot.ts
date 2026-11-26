@@ -99,7 +99,13 @@ export class Bot {
       if (t.state === 1 && slot > big(t.opened_slot) + DRAW_TIMEOUT_SLOTS) return void (await this.act("refund a pack VRF never drew", id, () => pg.methods.refundStuck().accounts({ table: tablePda(id), openerPlayer: playerPda(t.opener) }).transaction()));
     }
 
-    // 4. Open a new pack every so often if it holds none, leaving free tables for the visitor.
+    // 4. Low on chips: sell its cards back at table value.
+    if (big(botPlayer.chips) < big(config.pack_price)) {
+      const tier = botPlayer.cards.findIndex((n) => n > 0);
+      if (tier >= 0) return void (await this.act("bot sells its cards", undefined, () => pg.methods.sellCards(tier, botPlayer.cards[tier]).accounts({ wallet: this.kp.publicKey }).transaction()));
+    }
+
+    // 5. Open a new pack every so often if it holds none, leaving free tables for the visitor.
     const active = ids.some((id) => mine(tables[id]) && tables[id].state >= 1 && tables[id].state <= 3);
     const free = ids.filter((id) => tables[id].state === 0 || tables[id].state === 4);
     if (!active && free.length >= 2 && Date.now() - this.lastOpen > 6000 && big(botPlayer.chips) >= big(config.pack_price)) {

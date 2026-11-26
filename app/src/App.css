@@ -26,3 +26,4 @@ footer { font-size: 0.8em; color: #555; border-top: 1px solid #ddd; padding-top:
 @media (max-width: 480px) { .cards { grid-template-columns: repeat(3, 1fr); } .slot { margin-left: 0; } }
 .botctl { font-size: 0.85em; } .receipts li.bot { color: #555; }
 .peekres { font-size: 0.85em; background: #f4f4f4; padding: 6px; margin-top: 6px; }
+.how { padding-left: 20px; color: #333; max-width: 80ch; } .how li { margin: 2px 0; }

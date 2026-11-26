@@ -170,6 +170,11 @@ export default function App() {
         <h1>Mid-Rip</h1>
         <p className="tag">Buy the pack mid-rip.</p>
         <p className="lede">Card packs drawn by MagicBlock VRF inside a private rollup that nobody can read. Reveal a card, or put the sealed rest on a price clock that drops every 10 ms block, and anyone can buy it mid-rip.</p>
+        <ol className="how">
+          <li><b>Open a pack.</b> MagicBlock VRF draws 6 cards (one is a guaranteed hit) into an account only the program can read.</li>
+          <li><b>Rip or sell.</b> Reveal cards one at a time, or put the still-sealed rest on a clock that drops every rollup block.</li>
+          <li><b>Buy mid-rip.</b> Anyone can stop the clock and keep ripping. When the pack ends, everything settles to Solana and every card checks against the VRF output.</li>
+        </ol>
       </header>
 
       <section className="me">
