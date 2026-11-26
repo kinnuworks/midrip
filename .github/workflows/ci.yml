@@ -1,0 +1,23 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  program:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - name: Unit tests (draw, EV of the sealed rest, clock price, commitment)
+        run: cargo test -p midrip --lib
+  app:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: Typecheck and build
+        run: npx tsc -b && npm run build
