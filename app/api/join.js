@@ -40,29 +40,39 @@ function transferTx(from, to, lamports, blockhash) {
   const sig = nacl.sign.detached(message, from.secretKey);
   return Buffer.from(Uint8Array.from([...compactU16(1), ...sig, ...message])).toString("base64");
 }
+// Client IP as Vercel sees it: x-real-ip is set by Vercel's edge; for x-forwarded-for, Vercel appends
+// the real client address last, so a value the client sends itself cannot pick its own bucket.
+function clientIp(req) {
+  const real = req.headers["x-real-ip"];
+  if (real) return String(real);
+  const xff = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return xff[xff.length - 1] || "unknown";
+}
+const HOURLY_CAP = 150; // grants per hour across everyone: at most 2.25 devnet SOL
+const grants = [];
+
 async function handler(req, res) {
   try {
     if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body;
+    let body;
+    try { body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body; } catch { return res.status(400).json({ error: "bad json" }); }
     let wallet;
-    try {
-      wallet = bs58.decode(String(body?.wallet));
-      if (wallet.length !== 32) throw new Error();
-    } catch {
-      return res.status(400).json({ error: "bad wallet" });
-    }
-    const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0] || "unknown";
-    const now = Date.now();
-    const hits = (recent.get(ip) || []).filter((t) => t > now - 60000);
-    if (hits.length >= 6) return res.status(429).json({ error: "slow down" });
-    hits.push(now);
-    recent.set(ip, hits);
+    try { wallet = bs58.decode(String(body?.wallet)); if (wallet.length !== 32) throw new Error(); } catch { return res.status(400).json({ error: "bad wallet" }); }
     const secret = process.env.RELAYER_SECRET;
     if (!secret) return res.status(500).json({ error: "relayer not configured" });
+    const now = Date.now();
+    for (const [k, v] of recent) { const keep = v.filter((t) => t > now - 60000); if (keep.length) recent.set(k, keep); else recent.delete(k); }
+    while (grants.length && grants[0] < now - 3600000) grants.shift();
+    const ip = clientIp(req);
+    const hits = recent.get(ip) || [];
+    if (hits.length >= 6 || grants.length >= HOURLY_CAP) return res.status(429).json({ error: "slow down" });
+    hits.push(now);
+    recent.set(ip, hits);
     const relayer = nacl.sign.keyPair.fromSecretKey(Uint8Array.from(JSON.parse(secret)));
     const addr = bs58.encode(wallet);
     const bal = (await rpc("getBalance", [addr, { commitment: "confirmed" }])).value;
     if (bal >= MIN_BALANCE) return res.status(200).json({ funded: false, balance: bal });
+    grants.push(now);
     const { value } = await rpc("getLatestBlockhash", [{ commitment: "confirmed" }]);
     const sig = await rpc("sendTransaction", [transferTx(relayer, wallet, GRANT, value.blockhash), { encoding: "base64" }]);
     for (let i = 0; i < 40; i++) {

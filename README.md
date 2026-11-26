@@ -21,7 +21,7 @@ A pack has six cards: five base cards (Common 80%, Uncommon 20%) and one guarant
 3. `buy_rest` pays the holder the clock price for the current block and hands over the pack. The buyer keeps ripping. Cards already revealed stay with whoever revealed them.
 4. After the last card the randomness becomes public, the table and players commit to Solana, and anyone can recompute every card from the VRF output and check it against the commitment.
 
-Packs pay back 97% of their price on average (pack price 328 chips against an average value of 318). Cards sell back at their full table value.
+Packs are priced to pay back 97% on average (328 chips for an average value of 318); across our 400 test packs they paid back 93.8% (95% interval 83.3% to 105.4%). Cards sell back at their full table value.
 
 ## How it uses MagicBlock
 
