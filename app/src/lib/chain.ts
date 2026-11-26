@@ -1,0 +1,75 @@
+// Chain layer for the browser: Solana devnet for setup, MagicBlock's private rollup (devnet-tee) for play.
+import { Buffer } from "buffer";
+import { AnchorProvider, Program, BorshAccountsCoder, type Wallet } from "@coral-xyz/anchor";
+import { Connection, Keypair, PublicKey, Transaction } from "@solana/web3.js";
+import nacl from "tweetnacl";
+import { getAuthToken } from "@magicblock-labs/ephemeral-rollups-sdk";
+import idl from "../idl/midrip.json";
+
+export const PROGRAM_ID = new PublicKey(idl.address);
+export const BASE_RPC = "https://api.devnet.solana.com";
+export const TEE = "https://devnet-tee.magicblock.app";
+export const TEE_VALIDATOR = new PublicKey("MTEWGuqxUpYZGFJQcp8tLN7x5v9BSeoFHYWQQ3n3xzo");
+export const VRF_EPHEMERAL_QUEUE = new PublicKey("5hBR571xnXppuCPveTrctfTU7tJLSN94nq7kv7FRK5Tc");
+export const TABLE_IDS = [0, 1, 2, 3, 4, 5];
+export const EXPLORER = (sig: string, cluster = "devnet") => `https://explorer.solana.com/tx/${sig}?cluster=${cluster}`;
+export const EXPLORER_ADDR = (a: string) => `https://explorer.solana.com/address/${a}?cluster=devnet`;
+
+export const base = new Connection(BASE_RPC, "confirmed");
+const coder = new BorshAccountsCoder(idl as never);
+export const decode = <T,>(name: string, data: Uint8Array | null | undefined): T | null => (data ? (coder.decode(name, Buffer.from(data)) as T) : null);
+
+const pda = (...seeds: Uint8Array[]) => PublicKey.findProgramAddressSync(seeds, PROGRAM_ID)[0];
+const enc = (s: string) => new TextEncoder().encode(s);
+export const configPda = pda(enc("config"));
+export const playerPda = (w: PublicKey) => pda(enc("player"), w.toBytes());
+export const tablePda = (id: number) => pda(enc("table"), Uint8Array.of(id));
+export const sealedPda = (id: number) => pda(enc("sealed"), Uint8Array.of(id));
+
+// A burner keypair kept in this browser: no wallet extension, no popups.
+export function loadBurner(key = "midrip.burner"): Keypair {
+  try {
+    const s = localStorage.getItem(key);
+    if (s) return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(s)));
+  } catch { /* storage unavailable: use a fresh keypair */ }
+  const kp = Keypair.generate();
+  try { localStorage.setItem(key, JSON.stringify(Array.from(kp.secretKey))); } catch { /* ignore */ }
+  return kp;
+}
+
+export async function teeConnection(kp: Keypair): Promise<Connection> {
+  const { token } = await getAuthToken(TEE, kp.publicKey, async (m: Uint8Array) => nacl.sign.detached(m, kp.secretKey));
+  return new Connection(`${TEE}?token=${token}`, { commitment: "confirmed", wsEndpoint: `wss://devnet-tee.magicblock.app?token=${token}` });
+}
+
+export function program(conn: Connection, kp: Keypair): Program {
+  const wallet = { publicKey: kp.publicKey, payer: kp, signTransaction: async <T,>(t: T) => t, signAllTransactions: async <T,>(t: T) => t } as unknown as Wallet;
+  return new Program(idl as never, new AnchorProvider(conn, wallet, { commitment: "confirmed", skipPreflight: true }));
+}
+
+export interface SendResult { sig: string; err: unknown; ms: number; slot?: number }
+
+// Sign with the burner and send on the given connection; resolves when the network reports a status.
+export async function send(conn: Connection, tx: Transaction, kp: Keypair): Promise<SendResult> {
+  const t0 = performance.now();
+  tx.feePayer = kp.publicKey;
+  tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+  tx.sign(kp);
+  const sig = await conn.sendRawTransaction(tx.serialize(), { skipPreflight: true });
+  for (let i = 0; i < 300; i++) {
+    const st = (await conn.getSignatureStatuses([sig])).value[0];
+    if (st && (st.confirmationStatus || st.err)) return { sig, err: st.err, ms: Math.round(performance.now() - t0), slot: st.slot };
+    await new Promise((r) => setTimeout(r, 40));
+  }
+  return { sig, err: "timeout", ms: Math.round(performance.now() - t0) };
+}
+
+// ---- account shapes (snake_case, as the IDL coder returns them) ----
+type BNish = { toString(): string };
+export interface Config { base_weights: number[]; base_values: BNish[]; hit_weights: number[]; hit_values: BNish[]; ev_base_milli: BNish; ev_hit_milli: BNish; payout_bps: number; pack_price: BNish; start_bps: number; floor_bps: number; listing_slots: BNish; grace_slots: BNish; starting_chips: BNish }
+export interface Player { wallet: PublicKey; chips: BNish; cards: number[]; packs_opened: number }
+export interface Listing { list_slot: BNish; start_price: BNish; floor_price: BNish; duration_slots: BNish; end_slot: BNish; ev_rest_milli: BNish; cards_left: number }
+export interface Sale { price: BNish; slot: BNish; list_slot: BNish; from: PublicKey; to: PublicKey; cards_left: number }
+export interface Table { id: number; state: number; nonce: BNish; opener: PublicKey; holder: PublicKey; price_paid: BNish; opened_slot: BNish; revealed: number[]; revealed_count: number; hit_revealed: boolean; commitment: number[]; randomness: number[]; listing: Listing; last_sale: Sale; sales_count: number }
+export const STATE = ["idle", "drawing", "ripping", "listed", "done"] as const;
+export const big = (v: BNish | number) => BigInt(v.toString());

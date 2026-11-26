@@ -1,0 +1,16 @@
+import { base, teeConn, playerPda, tablePda, Keypair, PublicKey } from "./mr.mjs";
+const w = new PublicKey(process.argv[2]);
+const p = playerPda(w);
+const b = await base.getAccountInfo(p);
+console.log("player", p.toBase58(), "base owner", b?.owner.toBase58());
+const DLP = new PublicKey("DELeGGvXpWV2fqJUhqcF5ZSYMS4JTLjteaAMARRSaeSh");
+const rec = PublicKey.findProgramAddressSync([Buffer.from("delegation"), p.toBuffer()], DLP)[0];
+const r = await base.getAccountInfo(rec);
+console.log("delegation record", r ? "exists, validator " + new PublicKey(r.data.subarray(8, 40)).toBase58() : "none");
+const er = await teeConn(Keypair.generate());
+const e = await er.getAccountInfo(p);
+console.log("tee owner", e?.owner.toBase58(), "lamports", e?.lamports);
+const t = await er.getAccountInfo(tablePda(4));
+console.log("table4 tee owner", t?.owner.toBase58());
+const res = await fetch("https://devnet-router.magicblock.app/", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "getDelegationStatus", params: [p.toBase58()] }) });
+console.log("router", await res.text());
