@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { PublicKey, type Connection, type Transaction } from "@solana/web3.js";
 import {
   base, big, configPda, decode, ensurePlayer, mintPda, EXPLORER, EXPLORER_ADDR, loadBurner, PROGRAM_ID, playerPda, program, sealedPda, send, STATE,
@@ -43,6 +43,8 @@ export default function App() {
   cfgRef.current = config;
   const prevTables = useRef<Record<number, Table>>({});
   const [notice, setNotice] = useState<string | null>(null);
+  // The moment a buyer stops a clock: hold the frozen price on screen for a few seconds.
+  const [frozen, setFrozen] = useState<Record<number, { price: bigint; slot: bigint; list: bigint; at: number }>>({});
   const addReceipt = (r: Receipt) => setReceipts((xs) => [r, ...xs].slice(0, 30));
 
   // Connect to the private rollup with a token signed by the burner (no popup).
@@ -80,6 +82,9 @@ export default function App() {
         const prev = prevTables.current;
         for (const [k, t] of Object.entries(next)) {
           const before = prev[Number(k)];
+          if (before && big(t.last_sale.slot) > big(before.last_sale.slot)) {
+            setFrozen((f) => ({ ...f, [Number(k)]: { price: big(t.last_sale.price), slot: big(t.last_sale.slot), list: big(t.last_sale.list_slot), at: Date.now() } }));
+          }
           if (before && before.holder.equals(me.publicKey) && !t.holder.equals(me.publicKey) && big(t.last_sale.slot) > big(before.last_sale.slot)) {
             const buyer = botRef.current && t.holder.equals(botRef.current.kp.publicKey) ? "The demo bot" : short(t.holder.toBase58());
             setNotice(`Sold: ${buyer} paid you ${big(t.last_sale.price).toString()} chips for the sealed rest on table ${k} at block ${big(t.last_sale.slot).toString()}, ${(big(t.last_sale.slot) - big(t.last_sale.list_slot)).toString()} blocks after you listed it.`);
@@ -199,129 +204,206 @@ export default function App() {
   const joined = !!player;
   const chips = player ? big(player.chips) : 0n;
   const price = config ? big(config.pack_price) : 0n;
+  const now = Date.now();
+
+  const rank = (id: number) => { const t = tables[id]; if (!t) return 9; if (t.holder.equals(me.publicKey) && t.state >= 1 && t.state <= 3) return 0; if (t.state === 3) return 1; if (t.state === 2 || t.state === 1) return 2; if (t.state === 0) return 3; return 4; };
+  const order = [...tableIds].filter((id) => tables[id]).sort((a, b) => rank(a) - rank(b) || a - b);
+  const [heroId, ...restIds] = order;
+
+  const renderTable = (id: number, hero = false) => {
+    const t = tables[id];
+    if (!t) return null;
+    const state = forced && STATE.includes(forced as (typeof STATE)[number]) ? forced : STATE[t.state];
+    const mine = t.holder.equals(me.publicKey);
+    const left = PACK_SIZE - t.revealed_count;
+    const ev = config ? evRestMilli(left, t.hit_revealed, big(config.ev_base_milli), big(config.ev_hit_milli)) : 0n;
+    const L = t.listing;
+    const p = clockPrice(big(L.start_price), big(L.floor_price), big(L.list_slot), big(L.duration_slots), slot);
+    const elapsed = slot > big(L.list_slot) ? slot - big(L.list_slot) : 0n;
+    const frac = Math.min(1, Number(elapsed) / Math.max(1, Number(big(L.duration_slots))));
+    const expired = slot > big(L.end_slot);
+    const v = verified[id];
+    const fz = frozen[id] && now - frozen[id].at < 6000 && state !== "listed" ? frozen[id] : null;
+    const holderLabel = t.holder.toBase58() !== "11111111111111111111111111111111" ? (mine ? "you hold it" : botRef.current && t.holder.equals(botRef.current.kp.publicKey) ? "held by the demo bot" : `held by ${short(t.holder.toBase58())}`) : null;
+    return (
+      <article key={id} id={hero ? "live" : undefined} className={`table ${state}${hero ? " hero-table" : ""}${mine ? " mine" : ""}`}>
+        <div className="thead">
+          <span className="tname" data-n={id}>Table {id}</span>
+          <span className="badge">{state}</span>
+          {holderLabel && <span className="holder">{holderLabel}</span>}
+        </div>
+        {state === "listed" && (
+          <div className="clock">
+            <div className="price ui-num">{expired ? "unsold" : <>{p.toString()} <small>chips</small></>}</div>
+            <div className="bar" aria-hidden="true"><div style={{ width: `${(1 - frac) * 100}%` }} /></div>
+            <div className="clockmeta ui-num">Listed at block {big(L.list_slot).toString()} · {elapsed.toString()} blocks ago · floor {big(L.floor_price).toString()}</div>
+            <div className="clockexp">The clock starts at 125% of the sealed rest's average value ({milliToChips(big(L.ev_rest_milli))}) and falls to 85% over {big(L.duration_slots).toString()} blocks. Below the average is a bargain on paper.</div>
+          </div>
+        )}
+        {fz && (
+          <div className="clock frozen" role="status">
+            <div className="price ui-num">{fz.price.toString()} <small>chips</small></div>
+            <div className="clockmeta ui-num">Stopped at block {fz.slot.toString()} · {(fz.slot - fz.list).toString()} blocks after listing</div>
+          </div>
+        )}
+        <div className="cards">
+          {Array.from({ length: PACK_SIZE }, (_, i) => {
+            const tier = t.revealed[i];
+            const shown = tier !== 255 && i < t.revealed_count;
+            return (
+              <div key={i} className={`card ${shown ? "t" + tier : "sealed"}`}>
+                <span className="card-name">{shown ? TIER_NAMES[tier] : "sealed"}</span>
+              </div>
+            );
+          })}
+        </div>
+        {(state === "ripping" || state === "listed") && (
+          <div className="ev ui-num">Sealed rest: {left} cards · worth {milliToChips(ev)} chips on average{t.hit_revealed ? "" : " · the hit is still inside"}</div>
+        )}
+        {big(t.last_sale.slot) > 0n && (
+          <div className="sale ui-num">Last sale: rest of pack sold for {big(t.last_sale.price).toString()} chips at block {big(t.last_sale.slot).toString()}, {(big(t.last_sale.slot) - big(t.last_sale.list_slot)).toString()} blocks after listing</div>
+        )}
+        <div className="actions">
+          {(state === "idle" || state === "done") && joined && <button className="ui-btn" disabled={!!busy || chips < price} onClick={() => open(id)}>Open a pack · {price.toString()} chips</button>}
+          {state === "drawing" && <span className="wait">MagicBlock VRF is drawing the pack…</span>}
+          {state === "ripping" && mine && <><button className="ui-btn" disabled={!!busy} onClick={() => reveal(id)}>Reveal next card</button><button className="ui-btn ui-btn--ghost" disabled={!!busy} onClick={() => list(id)}>Sell the sealed rest</button></>}
+          {state === "ripping" && !mine && <span className="wait">Waiting for the holder to rip or sell…</span>}
+          {state === "listed" && !mine && joined && !expired && <button className="ui-btn buy" disabled={!!busy || chips < p} onClick={() => buy(id, t)}>Buy the rest · {p.toString()}</button>}
+          {state === "listed" && mine && <button className="ui-btn ui-btn--ghost" disabled={!!busy} onClick={() => cancel(id)}>Keep ripping</button>}
+          {state === "done" && <button className="ui-btn ui-btn--ghost" onClick={() => verify(id, t)}>Verify this pack</button>}
+          {(state === "ripping" || state === "listed") && <button className="ui-btn ui-btn--quiet peek" onClick={() => tryRead(id)}>Try to read the sealed cards</button>}
+        </div>
+        {peek[id] && (state === "ripping" || state === "listed") && <div className="peekres">{peek[id]}</div>}
+        {state === "done" && v && (
+          <div className={`verify ${v.ok ? "ok" : "bad"}`}>
+            {v.ok ? `Verified: all ${PACK_SIZE} cards match the VRF output and the commitment posted before the first reveal.` : `Did not verify: ${v.reason ?? (v.commitmentOk ? "revealed cards differ" : "commitment differs")}`}
+          </div>
+        )}
+      </article>
+    );
+  };
+
+  const joinBtn = !joined && (
+    <button className="ui-btn join" disabled={!!joinStep || !er} onClick={join}>{joinStep ?? "Get 2,000 play chips"}</button>
+  );
+
+  const wallet = (
+    <section className="me" aria-label="Your wallet">
+      <div className="me-id">Your wallet (kept in this browser): <a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">{short(me.publicKey.toBase58())}</a></div>
+      {joined ? (
+        <div className="me-chips ui-num">Chips: <b>{chips.toString()}</b> · Cards: {player!.cards.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")}</div>
+      ) : null}
+      {joined && player!.cards.some((n) => n > 0) && (
+        <div className="me-actions">
+          <button className="ui-btn ui-btn--ghost ui-btn--sm" disabled={!!busy} onClick={toWallet}>Move my cards to my wallet</button>
+          {config && <button className="ui-btn ui-btn--ghost ui-btn--sm" disabled={!!busy} onClick={sellAll}>Sell my cards for {player!.cards.reduce((a, n, i) => a + BigInt(n) * big(i < 2 ? config.base_values[i] : config.hit_values[i - 2]), 0n).toString()} chips</button>}
+        </div>
+      )}
+      <label className="botctl"><input type="checkbox" checked={botOn} onChange={(e) => setBotOn(e.target.checked)} /> Demo bot ({botStatus}{botPlayer ? ` · ${big(botPlayer.chips).toString()} chips` : ""})</label>
+      {owned && <div className="owned">In your wallet on Solana: {owned.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} (<a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">see tokens</a>)</div>}
+    </section>
+  );
+
+  const lede2 = "Reveal a card, or put the sealed rest on a price clock that drops every 10 ms block, and anyone can buy it mid-rip.";
+  const slotPill = <div className="slot ui-num">Rollup block <b>{slot.toString()}</b></div>;
+  const heroTable = heroId !== undefined ? renderTable(heroId, true) : <div className="table hero-table placeholder"><p className="wait">Connecting to MagicBlock's private rollup…</p></div>;
 
   return (
     <div className="page">
-      <header>
-        <h1>Mid-Rip</h1>
-        <p className="tag">Buy the pack mid-rip.</p>
-        <p className="lede">Card packs drawn by MagicBlock VRF inside a private rollup that nobody can read. Reveal a card, or put the sealed rest on a price clock that drops every 10 ms block, and anyone can buy it mid-rip.</p>
-        <ol className="how">
-          <li>Open a pack: MagicBlock VRF draws 6 cards (one is a guaranteed hit) into an account only the program can read.</li>
-          <li>Rip or sell: rip (reveal) cards one at a time, or put the still-sealed rest on a clock that drops every rollup block.</li>
-          <li>Buy mid-rip: anyone can stop the clock and keep ripping. When the pack ends, everything settles to Solana and every card checks against the VRF output.</li>
-        </ol>
-      </header>
+      <div className="main">
+        <nav className="nav">
+          <a className="brand" href="#top">Mid-Rip</a>
+          <div className="nav-links">
+            <a href="#live">Tables</a>
+            <a href="#how">How it works</a>
+            <a href="#proof">Proof</a>
+            <a href="#receipts">Transactions</a>
+          </div>
+          {slotPill}
+        </nav>
 
-      <section className="me">
-        <div>Your wallet (kept in this browser): <a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">{short(me.publicKey.toBase58())}</a></div>
-        {joined ? (
-          <div>Chips: <b>{chips.toString()}</b> · Cards: {player!.cards.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} {player!.cards.some((n) => n > 0) && <button disabled={!!busy} onClick={toWallet}>Move my cards to my wallet</button>} {player!.cards.some((n) => n > 0) && config && <button disabled={!!busy} onClick={sellAll}>Sell my cards for {player!.cards.reduce((a, n, i) => a + BigInt(n) * big(i < 2 ? config.base_values[i] : config.hit_values[i - 2]), 0n).toString()} chips</button>}</div>
-        ) : (
-          <button disabled={!!joinStep || !er} onClick={join}>{joinStep ?? "Get 2,000 play chips"}</button>
-        )}
-        <label className="botctl"><input type="checkbox" checked={botOn} onChange={(e) => setBotOn(e.target.checked)} /> Demo bot ({botStatus}{botPlayer ? ` · ${big(botPlayer.chips).toString()} chips` : ""})</label>
-        {owned && <div className="owned">In your wallet on Solana: {owned.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} (<a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">see tokens</a>)</div>}
-        <div className="slot">Rollup block <b>{slot.toString()}</b></div>
-      </section>
+        <header className="hero" id="top">
+          <Blocks />
+          <h1 className="wordmark">Mid-Rip<span className="overprint" aria-hidden="true">Mid-Rip</span></h1>
+          <div className="hero-copy">
+            <p className="tag">Buy the pack mid-rip.</p>
+            <p className="lede">Card packs drawn by MagicBlock VRF inside a private rollup that nobody can read.</p>
+            {joinBtn}
+          </div>
+          <div className="hero-stage"><p className="lede-2">{lede2}</p>{heroTable}</div>
+        </header>
 
-      {error && <div className="error" role="alert">{error}</div>}
-      {notice && <div className="notice" role="status">{notice} <button onClick={() => setNotice(null)}>OK</button></div>}
+        <section className="stats" aria-label="Checked on 400 test packs">
+          <div><b className="ui-num">400 of 400</b><span>packs verify</span></div>
+          <div><b className="ui-num">93.8%</b><span>paid back</span></div>
+          <div><b className="ui-num">227 ms</b><span>median VRF draw</span></div>
+        </section>
 
-      {!er && !error && <p>Connecting to MagicBlock's private rollup…</p>}
+        {error && <div className="error" role="alert">{error}</div>}
+        {notice && <div className="notice" role="status">{notice} <button className="ui-btn ui-btn--sm" onClick={() => setNotice(null)}>OK</button></div>}
 
-      <section className="tables">
-        {[...tableIds].sort((a, b) => {
-          const rank = (id: number) => { const t = tables[id]; if (!t) return 9; if (t.holder.equals(me.publicKey) && t.state >= 1 && t.state <= 3) return 0; if (t.state === 3) return 1; if (t.state === 2 || t.state === 1) return 2; if (t.state === 0) return 3; return 4; };
-          return rank(a) - rank(b) || a - b;
-        }).map((id) => {
-          const t = tables[id];
-          if (!t) return null;
-          const state = forced && STATE.includes(forced as (typeof STATE)[number]) ? forced : STATE[t.state];
-          const mine = t.holder.equals(me.publicKey);
-          const left = PACK_SIZE - t.revealed_count;
-          const ev = config ? evRestMilli(left, t.hit_revealed, big(config.ev_base_milli), big(config.ev_hit_milli)) : 0n;
-          const L = t.listing;
-          const p = clockPrice(big(L.start_price), big(L.floor_price), big(L.list_slot), big(L.duration_slots), slot);
-          const elapsed = slot > big(L.list_slot) ? slot - big(L.list_slot) : 0n;
-          const frac = Math.min(1, Number(elapsed) / Math.max(1, Number(big(L.duration_slots))));
-          const expired = slot > big(L.end_slot);
-          const v = verified[id];
-          return (
-            <article key={id} className={`table ${state}`}>
-              <div className="thead">
-                <span>Table {id}</span>
-                <span className="badge">{state}</span>
-                {t.holder.toBase58() !== "11111111111111111111111111111111" && <span className="holder">{mine ? "you hold it" : botRef.current && t.holder.equals(botRef.current.kp.publicKey) ? "held by the demo bot" : `held by ${short(t.holder.toBase58())}`}</span>}
-              </div>
-              <div className="cards">
-                {Array.from({ length: PACK_SIZE }, (_, i) => {
-                  const tier = t.revealed[i];
-                  const shown = tier !== 255 && i < t.revealed_count;
-                  return <div key={i} className={`card ${shown ? "t" + tier : "sealed"}`}>{shown ? TIER_NAMES[tier] : "sealed"}</div>;
-                })}
-              </div>
-              {(state === "ripping" || state === "listed") && (
-                <div className="ev">Sealed rest: {left} cards · worth {milliToChips(ev)} chips on average{t.hit_revealed ? "" : " · the hit is still inside"}</div>
-              )}
-              {state === "listed" && (
-                <div className="clock">
-                  <div className="price">{expired ? "unsold" : p.toString()} <small>chips</small></div>
-                  <div className="bar"><div style={{ width: `${(1 - frac) * 100}%` }} /></div>
-                  <div className="clockmeta">Listed at block {big(L.list_slot).toString()} · {elapsed.toString()} blocks ago · floor {big(L.floor_price).toString()}</div>
-                  <div className="clockmeta">The clock starts at 125% of the sealed rest's average value ({milliToChips(big(L.ev_rest_milli))}) and falls to 85% over {big(L.duration_slots).toString()} blocks. Below the average is a bargain on paper.</div>
-                </div>
-              )}
-              {big(t.last_sale.slot) > 0n && (
-                <div className="sale">Last sale: rest of pack sold for {big(t.last_sale.price).toString()} chips at block {big(t.last_sale.slot).toString()}, {(big(t.last_sale.slot) - big(t.last_sale.list_slot)).toString()} blocks after listing</div>
-              )}
-              <div className="actions">
-                {(state === "idle" || state === "done") && joined && <button disabled={!!busy || chips < price} onClick={() => open(id)}>Open a pack · {price.toString()} chips</button>}
-                {state === "drawing" && <span>MagicBlock VRF is drawing the pack…</span>}
-                {state === "ripping" && mine && <><button disabled={!!busy} onClick={() => reveal(id)}>Reveal next card</button><button disabled={!!busy} onClick={() => list(id)}>Sell the sealed rest</button></>}
-                {state === "ripping" && !mine && <span>Waiting for the holder to rip or sell…</span>}
-                {state === "listed" && !mine && joined && !expired && <button className="buy" disabled={!!busy || chips < p} onClick={() => buy(id, t)}>Buy the rest · {p.toString()}</button>}
-                {state === "listed" && mine && <button disabled={!!busy} onClick={() => cancel(id)}>Keep ripping</button>}
-                {state === "done" && <button onClick={() => verify(id, t)}>Verify this pack</button>}
-                {(state === "ripping" || state === "listed") && <button className="peek" onClick={() => tryRead(id)}>Try to read the sealed cards</button>}
-              </div>
-              {peek[id] && (state === "ripping" || state === "listed") && <div className="peekres">{peek[id]}</div>}
-              {state === "done" && v && (
-                <div className={`verify ${v.ok ? "ok" : "bad"}`}>
-                  {v.ok ? `Verified: all ${PACK_SIZE} cards match the VRF output and the commitment posted before the first reveal.` : `Did not verify: ${v.reason ?? (v.commitmentOk ? "revealed cards differ" : "commitment differs")}`}
-                </div>
-              )}
-            </article>
-          );
-        })}
-      </section>
+        <section className="tables-wrap">
+          <h2 className="sec-title">Tables</h2>
+          <div className="tables">
+            {restIds.map((id) => renderTable(id))}
+          </div>
+        </section>
 
-      <section className="proof">
-        <h2>Checked on 400 test packs</h2>
-        <p>We opened 400 packs on devnet from wallets we control (test transactions, not real users) and checked every one.</p>
-        <ul>
-          <li>400 of 400 packs verify against their VRF output and commitment (95% interval 99.0% to 100.0%).</li>
-          <li>Cards follow the published odds: 9 Legendary, 98 Epic and 293 Rare hits against 12, 88 and 300 expected.</li>
-          <li>Packs paid back 93.8% of their price (95% interval 83.3% to 105.4%; designed for 97%). Collector Crypt players got back 94.2% (Bitquery).</li>
-          <li>A reveal came back in 167 ms at the median; a VRF draw in 227 ms.</li>
-        </ul>
-      </section>
+        {wallet}
 
-      <section className="receipts">
-        <h2>Transactions (yours and the demo bot's)</h2>
-        {receipts.length === 0 && <p>None yet.</p>}
-        <ol>
-          {receipts.map((r, i) => (
-            <li key={i} className={(r.ok ? "" : "bad") + (r.bot ? " bot" : "")}>
-              {r.action}{r.table !== undefined ? ` · table ${r.table}` : ""} · {r.ms} ms{r.slot ? ` · block ${r.slot}` : ""} · {r.base ? <a href={EXPLORER(r.sig)} target="_blank" rel="noreferrer">{short(r.sig)}</a> : <code title={r.sig}>{short(r.sig)}</code>}{r.note ? ` · ${r.note}` : ""}
-            </li>
-          ))}
-        </ol>
-      </section>
+        <section className="how-wrap" id="how">
+          <h2 className="sec-title">How it works</h2>
+          <ol className="how">
+            <li><b>Open a pack:</b> MagicBlock VRF draws 6 cards (one is a guaranteed hit) into an account only the program can read.</li>
+            <li><b>Rip or sell:</b> rip (reveal) cards one at a time, or put the still-sealed rest on a clock that drops every rollup block.</li>
+            <li><b>Buy mid-rip:</b> anyone can stop the clock and keep ripping. When the pack ends, everything settles to Solana and every card checks against the VRF output.</li>
+          </ol>
+        </section>
 
-      <footer>
-        Solana devnet with play chips. Program <a href={EXPLORER_ADDR(PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">{short(PROGRAM_ID.toBase58())}</a>. Odds: {config ? `Common ${config.base_weights[0]}% / Uncommon ${config.base_weights[1]}% in five slots; one hit slot Rare ${config.hit_weights[0]}% / Epic ${config.hit_weights[1]}% / Legendary ${config.hit_weights[2]}%. Packs pay back ${config.payout_bps / 100}% of their price on average.` : "loading…"}
-      </footer>
+        <section className="proof" id="proof">
+          <h2 className="sec-title">Checked on 400 test packs</h2>
+          <p>We opened 400 packs on devnet from wallets we control (test transactions, not real users) and checked every one.</p>
+          <ul>
+            <li>400 of 400 packs verify against their VRF output and commitment (95% interval 99.0% to 100.0%).</li>
+            <li>Cards follow the published odds: 9 Legendary, 98 Epic and 293 Rare hits against 12, 88 and 300 expected.</li>
+            <li>Packs paid back 93.8% of their price (95% interval 83.3% to 105.4%; designed for 97%). Collector Crypt players got back 94.2% (Bitquery).</li>
+            <li>A reveal came back in 167 ms at the median; a VRF draw in 227 ms.</li>
+          </ul>
+        </section>
+
+        <section className="receipts" id="receipts">
+          <h2 className="sec-title">Transactions (yours and the demo bot's)</h2>
+          {receipts.length === 0 && <p>None yet.</p>}
+          <ol>
+            {receipts.map((r, i) => (
+              <li key={i} className={(r.ok ? "" : "bad") + (r.bot ? " bot" : "")}>
+                <span className="r-action">{r.action}{r.table !== undefined ? ` · table ${r.table}` : ""}</span>
+                <span className="r-meta ui-num">{r.ms} ms{r.slot ? ` · block ${r.slot}` : ""} · {r.base ? <a href={EXPLORER(r.sig)} target="_blank" rel="noreferrer">{short(r.sig)}</a> : <code title={r.sig}>{short(r.sig)}</code>}{r.note ? ` · ${r.note}` : ""}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <footer>
+          Solana devnet with play chips. Program <a href={EXPLORER_ADDR(PROGRAM_ID.toBase58())} target="_blank" rel="noreferrer">{short(PROGRAM_ID.toBase58())}</a>. Odds: {config ? `Common ${config.base_weights[0]}% / Uncommon ${config.base_weights[1]}% in five slots; one hit slot Rare ${config.hit_weights[0]}% / Epic ${config.hit_weights[1]}% / Legendary ${config.hit_weights[2]}%. Packs pay back ${config.payout_bps / 100}% of their price on average.` : "loading…"}
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// Backdrop: flat pixel blocks in the card rarity colours (cells are 100 px on desktop).
+const BLOCKS: [number, number, number, number, string, boolean?][] = [
+  [0, 0, 0.5, 0.5, "pink"], [0.5, 0.5, 0.5, 0.5, "green"], [1, 1, 1.43, 2, "green", true], [0, 3, 1, 2, "pink"],
+  [11, 1, 3.4, 2, "green"], [13.6, 4, 0.8, 1, "yellow", true], [11, 5, 2.5, 1, "pink", true], [10.3, 3.9, 0.7, 1, "cyan"],
+  [9.75, 6, 1.25, 0.5, "cyan"], [12.25, 6, 1.25, 0.5, "green"], [11, 6.5, 1.25, 0.5, "yellow"], [13.5, 6.5, 0.9, 0.5, "pink"],
+];
+function Blocks() {
+  return (
+    <div className="blocks" aria-hidden="true">
+      {BLOCKS.map(([x, y, w, h, c, dots], i) => (
+        <i key={i} className={`blk ${c}${dots ? " dots" : ""}`} style={{ "--x": x, "--y": y, "--w": w, "--h": h } as CSSProperties} />
+      ))}
     </div>
   );
 }

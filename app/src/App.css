@@ -1,31 +1,76 @@
-.page { max-width: 1100px; margin: 0 auto; padding: 16px; }
-header h1 { margin: 0; }
-.tag { font-size: 1.2em; margin: 4px 0; }
-.lede { color: #444; max-width: 70ch; }
-.me { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; padding: 10px 0; border-bottom: 1px solid #ddd; }
-.slot { margin-left: auto; font-variant-numeric: tabular-nums; }
-.error { background: #fee; border: 1px solid #c33; padding: 8px; margin: 8px 0; word-break: break-word; }
-.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin: 16px 0; }
-.table { border: 1px solid #ccc; border-radius: 8px; padding: 10px; }
-.thead { display: flex; gap: 8px; align-items: center; }
-.badge { font-size: 0.8em; border: 1px solid #999; border-radius: 4px; padding: 0 6px; }
-.holder { margin-left: auto; font-size: 0.85em; color: #555; }
-.cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin: 8px 0; }
-.card { border: 1px solid #bbb; border-radius: 4px; padding: 10px 2px; text-align: center; font-size: 0.7em; }
-.card.sealed { background: #333; color: #ccc; }
-.card.t2, .card.t3, .card.t4 { font-weight: bold; }
-.clock .price { font-size: 2em; font-variant-numeric: tabular-nums; }
-.bar { height: 6px; background: #eee; }
-.bar div { height: 6px; background: #333; }
-.clockmeta, .sale, .ev { font-size: 0.85em; color: #444; margin: 4px 0; font-variant-numeric: tabular-nums; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.verify.ok { color: #060; } .verify.bad { color: #a00; }
-.receipts li { font-size: 0.85em; font-variant-numeric: tabular-nums; }
-.receipts li.bad { color: #a00; }
-footer { font-size: 0.8em; color: #555; border-top: 1px solid #ddd; padding-top: 8px; }
-@media (max-width: 480px) { .cards { grid-template-columns: repeat(3, 1fr); } .slot { margin-left: 0; } }
-.botctl { font-size: 0.85em; } .receipts li.bot { color: #555; }
-.peekres { font-size: 0.85em; background: #f4f4f4; padding: 6px; margin-top: 6px; }
-.how { padding-left: 20px; color: #333; max-width: 80ch; } .how li { margin: 2px 0; }
-.proof ul { padding-left: 20px; } .proof li { margin: 2px 0; }
-.notice { background: #efe; border: 1px solid #393; padding: 8px; margin: 8px 0; }
+/* Shared product structure. Colours, fonts and shapes come from the tokens in
+   styles/design/directions.css; this file only lays things out. */
+
+.page { display: flex; min-height: 100dvh; }
+.main { flex: 1; min-width: 0; }
+.wrap, .nav, .stats, .tables-wrap, .me, .how-wrap, .proof, .receipts, footer, .error, .notice {
+  width: min(100% - 2 * var(--gutter), var(--page-max)); margin-inline: auto;
+}
+
+/* Navigation */
+.nav { display: flex; align-items: center; gap: var(--s-5); min-height: var(--nav-h, 64px); position: relative; z-index: 3; }
+.brand { color: var(--ink); text-decoration: none; font-family: var(--font-display); font-weight: var(--weight-display); }
+.nav-links { display: flex; gap: var(--nav-gap, var(--s-5)); margin-left: auto; }
+.nav-links a { color: var(--nav-fg, var(--ink)); text-decoration: none; }
+.nav-links a:hover { text-decoration: underline; }
+.slot { white-space: nowrap; }
+.slot b { color: inherit; font-weight: inherit; }
+
+/* Hero */
+.hero { position: relative; }
+.wordmark { position: relative; z-index: 1; margin: 0; }
+.hero-copy { position: relative; z-index: 2; display: flex; flex-direction: column; gap: var(--s-5); }
+.hero-copy p { max-width: none; }
+
+/* Tables */
+.tables { display: grid; gap: var(--tables-gap, var(--s-4)); grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); container-type: inline-size; }
+.table { position: relative; display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.hero-table { grid-column: 1 / -1; }
+.thead { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; }
+.holder { margin-left: auto; }
+.cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--cards-gap, 6px); }
+.card { aspect-ratio: 5 / 7; display: flex; align-items: flex-end; justify-content: center; padding: 6px 2px; overflow: hidden; text-align: center; line-height: 1.1; min-width: 0; }
+.card-name { font-size: inherit; overflow-wrap: anywhere; }
+.price small { font-size: max(15px, 0.2em); letter-spacing: 0; font-weight: 400; }
+.bar { height: 6px; background: var(--bar-bg, var(--rule)); overflow: hidden; }
+.bar div { height: 100%; background: var(--bar-fg, var(--ink)); transition: width 150ms linear; }
+.actions { display: flex; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
+.actions .peek { margin-left: auto; }
+.peekres, .verify { padding: var(--s-3); }
+.clockexp { font-size: 15px; }
+.clock.frozen .price { animation: freeze var(--dur-signature) var(--ease-pop); }
+@keyframes freeze { 0% { transform: scale(1.06); } 100% { transform: none; } }
+
+/* Hero table: clock beside the cards once there is room */
+@container (min-width: 960px) {
+  .hero-table { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); column-gap: var(--s-8); align-items: start; }
+  .hero-table > * { grid-column: 1 / -1; }
+  .hero-table > .clock { grid-column: 1; grid-row: 2 / span 3; }
+  .hero-table > .clock ~ .cards, .hero-table > .clock ~ .ev, .hero-table > .clock ~ .sale, .hero-table > .clock ~ .actions { grid-column: 2; }
+}
+
+/* Wallet bar */
+.me { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-5); align-items: center; }
+.me-actions { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+.botctl { display: inline-flex; gap: var(--s-2); align-items: center; }
+
+/* Messages */
+.error { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); padding: var(--s-3) var(--s-4); margin-block: var(--s-3); overflow-wrap: anywhere; }
+.notice { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok); padding: var(--s-3) var(--s-4); margin-block: var(--s-3); display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
+.verify.ok { color: var(--ok); background: var(--ok-bg); }
+.verify.bad { color: var(--bad); background: var(--bad-bg); }
+
+/* Lists */
+.how, .proof ul { padding-left: 1.2em; display: grid; gap: var(--s-2); }
+.receipts ol { list-style: none; padding: 0; }
+.receipts li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--s-2) var(--s-4); padding-block: var(--s-2); border-bottom: 1px solid var(--rule); }
+.receipts li.bad { color: var(--bad); }
+.receipts li.bot { color: var(--ink-3); }
+.r-meta code { font-size: inherit; }
+footer { padding-block: var(--s-7); }
+
+@media (max-width: 640px) {
+  .nav-links { display: none; }
+  .slot { margin-left: auto; }
+  .actions .peek { margin-left: 0; }
+}

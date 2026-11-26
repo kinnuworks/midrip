@@ -1,0 +1,7 @@
+# Screenshots and measurements of third-party reference sites stay local.
+refs/**/*.png
+refs/**/spec.json
+refs/**/sections/
+directions/
+shots/*
+!shots/result-1440.png

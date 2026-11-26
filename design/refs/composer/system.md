@@ -1,0 +1,10 @@
+# Composer: system (direction A)
+
+- Type: Neue Haas Grotesk Display everywhere; free match Inter Tight (specimen: closest width and `a`/`R`). Display 244px/700, line height 1, tracking about -0.02em; text under the headline 36px/400 tight; headings 64px/700; body 16-20px/400; UI 14px. Phone display 68px. No mono, no tracked caps.
+- Colour: hero band #ecedee, page #ffffff, ink #000000, dark product panel #101516, deep green band #1c372a. Accents only as pixel blocks and data: green #1ec072, blue #1871da, cyan #2ecfff, pink #ffb0ee (#f6609f strong), red #ea0042, yellow #ffbb38. Buttons are black pills.
+- Space: container 1376px, gaps 8/16/40/48px; sections 160-190px padding on desktop.
+- Shape: 0 radius boxes, pill buttons, 6px on small product panels; hairline 1px #000@0.2 dividers; almost no shadows.
+- Components: primary = black pill 68px tall, 36px text with arrow; nav = logo + text links + small black pill at right; stat row = three centred big numbers with grey label, divided by hairlines; product panel = near-black window with grid lines.
+- First screen slot for slot: header (logo, 6 links, pill at right) -> ours: "Mid-Rip" wordmark, links to Tables / How it works / Proof / Transactions / Program, pill = live rollup block counter. Small line above headline ("Meet") -> none of ours, left out. Headline 1 word 244px -> "Mid-Rip". Text under it (19 words, 36px) -> brief's sub, first sentence. Second line ("Trading. Built better.") -> tagline "Buy the pack mid-rip.". Black pill button -> "Get 2,000 play chips". Main visual (pixel-block field right) -> the live hero table inside a dark product panel, with our own pixel blocks around it in the rarity colours. Stat row under hero -> three measured proof numbers.
+- Sections: 02 stat row -> proof numbers; 03 two-column bordered feature grid on #ecedee -> How it works (3 steps) + wallet bar; 04 dark #101516 band -> the other tables grid; 07 FAQ list on white -> transactions list; 08 black footer -> footer.
+- Decoration: flat square pixel blocks with a faint dot grid inside some; drawn in CSS. Moves: none beyond hover.
