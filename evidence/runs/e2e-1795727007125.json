@@ -1,0 +1,160 @@
+{
+  "table": 8,
+  "steps": [
+    {
+      "name": "open_pack",
+      "sig": "34otcF6vk7mnjZNV1a8wAfmGp6G7zDx4aWupkEJ5wJgwCovPkm2QoQ598RVuopmY14c6jcRw9zo7VqiE9akhyfnW",
+      "err": null,
+      "ms": 181
+    },
+    {
+      "name": "reveal",
+      "sig": "65JNEQtgCsJ5XFjK7N868dtVF5NYSXh8Xmeehvma7EuGArhYYQ4VBdJ24R6KH8VnDeuU23R8m3q31iaMSscT48mY",
+      "err": null,
+      "ms": 157,
+      "pos": 0
+    },
+    {
+      "name": "reveal",
+      "sig": "4yWqVKGv1tjXSWdFHXQdcv1QENEVox2Vm9BDpTJpoojoJe6xUFeMdLwXLjVWxWd66iwH1HN7pPDkXpFgEEbWenEg",
+      "err": null,
+      "ms": 157,
+      "pos": 1
+    },
+    {
+      "name": "list_rest",
+      "sig": "4JDpW9knNpppD57icskscPGyWD4idcFSYLRJVeTCKAiG2x65tW6Y7LeuwfiffBMsKUYhCJaZ2pD8yQSY5JXMRQDL",
+      "err": null,
+      "ms": 151
+    },
+    {
+      "name": "buy_rest",
+      "sig": "234wXt4rmQqgk2VKCG43AkJMJuaqzTpw2JCaGi1J6A4p1LHEWSaAnH1Uzo2torPE1Z4z1QHTTeseHiJ2WaxfaXAX",
+      "err": null,
+      "ms": 181
+    },
+    {
+      "name": "reveal",
+      "sig": "65xPMjPPMdVpVaUCVoEwL9xPonUNjsSxkExo5jpkfWR51EVjyg6gREsFwPmX3ecMRcZmwduANVvupsDFag6r2RmT",
+      "err": null,
+      "ms": 161,
+      "pos": 2
+    },
+    {
+      "name": "reveal",
+      "sig": "4br4u38S9RHS8fjA6zdZivJMLscY4zdrMWvZnNgfoCsZdhTQHRHbKezDCPGWpwQngcmgFHcBdVEZyG9wwbcZ7cHn",
+      "err": null,
+      "ms": 163,
+      "pos": 3
+    },
+    {
+      "name": "reveal",
+      "sig": "4R1avd4gPwbFYY4txPHCEzgNMGDMxngCUh6cHsqLyuGnM7j87q2buy7qqonA9RSpjjK28F2A6f8e6Apuv2ebVmVT",
+      "err": null,
+      "ms": 152,
+      "pos": 4
+    },
+    {
+      "name": "reveal",
+      "sig": "3yefoabVJN9QM69zeyLp1XwUnp2SkZUqoX5rsx8NU38yW5xRdXDyBCXiyP9rAdMzSF7y7rcF6bb5GV5Hrkt2iVGU",
+      "err": null,
+      "ms": 154,
+      "pos": 5
+    },
+    {
+      "name": "withdraw_cards",
+      "sig": "4LfQicpUrWbRfX8zxSUKWhQLwpGgKShpoK37WpVoVEfdYwGdHqu7aXhScACb1kmUxd1CTe7MhiCuNEgyq2WgYhk6",
+      "err": null,
+      "ms": 160,
+      "tier": 0,
+      "count": 3
+    },
+    {
+      "name": "withdraw_cards",
+      "sig": "5Vk2iL2gcN3e6oTNEJbsS1oKGscFs6oU3MzMWC7Rbo41PNB8K6onByWpebCVp1L3CQZN33ZpLSn3G68CT9Tpo2oM",
+      "err": null,
+      "ms": 155,
+      "tier": 2,
+      "count": 1
+    },
+    {
+      "name": "settle",
+      "sig": "3YRyw3cMYVkwAG5VgvS7Re9A4sxJcFM6ASALKGvL8KwudnuuvwGYuDXHPpuiXwnYuX8nLL61JnoC5ydQYYY56jLc",
+      "err": null,
+      "ms": 151
+    }
+  ],
+  "checks": {
+    "vrfCallbackMs": 233,
+    "sealedReadStranger": "null",
+    "sealedReadOpener": "null",
+    "tableSigsSeenByOpener": 4,
+    "callbackSig": "28veryWCfeDHnUwYP89oi8Tti5RS36endZnWTUpPQ8sAp2Sx5fttFLpTUyCgpHuoZcFKfkFfUStrz2iBNxERgEFK",
+    "callbackTx_stranger": "VISIBLE (5 logs)",
+    "callbackTx_opener": "VISIBLE (5 logs)",
+    "sealedSigsStranger": 0,
+    "evRestMatches": true,
+    "salePriceMatchesClock": true,
+    "sale": {
+      "price": "353",
+      "slot": "896925941",
+      "slotsAfterList": "63"
+    },
+    "verify": {
+      "ok": true,
+      "tiers": [
+        0,
+        0,
+        2,
+        0,
+        0,
+        0
+      ],
+      "hitPos": 2,
+      "commitmentOk": true,
+      "revealedOk": true
+    },
+    "strangerPredictedCorrectly": false,
+    "players": {
+      "A": {
+        "chips": "2025",
+        "cards": [
+          2,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "B": {
+        "chips": "1647",
+        "cards": [
+          3,
+          0,
+          1,
+          0,
+          0
+        ]
+      }
+    },
+    "claims": [
+      {
+        "tier": 0,
+        "owed": 3,
+        "balance": 3,
+        "sig": "Jp8NW88Gi8XpXSPRxjbnofYswFqRmZpVkYN5CcDukRkXwrit3UxmxERaxKiQFPmzbZgLJi7ESWzJ4KwUKSrVFuz"
+      },
+      {
+        "tier": 2,
+        "owed": 1,
+        "balance": 1,
+        "sig": "3B8pj34M5RRpoZWsQ6gTamjRBF8QCwFCtXnKgKWe8A5v9f7uYjx5euMLpKp4P6UMwZix5RHg1m4C5nAVg2gd4Ztg"
+      }
+    ],
+    "claimsOk": true
+  },
+  "players": [
+    "4dSzjkmCe9EKq3Ue2DmUeHy2AAGvBybj1YZdW2QqpRpH",
+    "DvAFMEQGmixndKu5MTmDuzdvpJyAaZFWtPe7gBRx8G69"
+  ]
+}
