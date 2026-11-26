@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 use ephemeral_rollups_sdk::access_control::instructions::CreateEphemeralPermissionCpi;
 use ephemeral_rollups_sdk::access_control::structs::{EphemeralMembersArgs, EphemeralPermission, PERMISSION_SEED};
-use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral, vrf, vrf_callback};
+use ephemeral_rollups_sdk::anchor::{commit, delegate, ephemeral, vrf};
 use ephemeral_rollups_sdk::consts::{EPHEMERAL_VAULT_ID, MAGIC_PROGRAM_ID, PERMISSION_PROGRAM_ID};
 use ephemeral_rollups_sdk::cpi::DelegateConfig;
 use ephemeral_rollups_sdk::ephem::MagicIntentBundleBuilder;
@@ -602,9 +602,17 @@ pub struct OpenPack<'info> {
     pub oracle_queue: UncheckedAccount<'info>,
 }
 
-#[vrf_callback]
+/// Scoped VRF identity for this program, computed at compile time. On SDK 0.18.0 the
+/// `#[vrf_callback]` macro derives it at runtime and runs the callback out of compute
+/// (ephemeral-rollups-sdk issue #343), so the signer is checked against this constant instead.
+pub const VRF_CALLBACK_IDENTITY: Pubkey =
+    Pubkey::new_from_array(ephemeral_rollups_sdk::vrf::consts::scoped_vrf_identity_const(&crate::ID).0);
+
 #[derive(Accounts)]
 pub struct CallbackDraw<'info> {
+    /// Only MagicBlock's VRF program can sign as this identity, so spoofed randomness is rejected.
+    #[account(address = VRF_CALLBACK_IDENTITY)]
+    pub vrf_program_identity: Signer<'info>,
     #[account(mut, seeds = [TABLE_SEED, &[table.id]], bump = table.bump)]
     pub table: Account<'info, Table>,
     #[account(mut, seeds = [SEALED_SEED, &[table.id]], bump = sealed.bump)]
