@@ -1,0 +1,146 @@
+{
+  "table": 3,
+  "steps": [
+    {
+      "name": "open_pack",
+      "sig": "3AfqakB12jGzjxCn7UARS6HAzuB7GBCGhH9YSAJqMAoD1JMXNoh7zhBv4xiDvDygwLwv8yw1orEkTG2o74mBDXcd",
+      "err": null,
+      "ms": 190
+    },
+    {
+      "name": "reveal",
+      "sig": "4SkmikuSbME5YNoEgezT7Gp95VkV9Ai8MXiEvgeMVdixvTLnoi7jM2UhnNXga19rzcK5Xnfti1as6HKdmwedZXXd",
+      "err": null,
+      "ms": 176,
+      "pos": 0
+    },
+    {
+      "name": "reveal",
+      "sig": "hJ8ZZTeuWgEnddt9Am7FakyELeYMx8QGThzWp6daDKpU7GiEUfkMZfAMKry1mRZqY8UjVWm9LaACHRQE1Gvk5eg",
+      "err": null,
+      "ms": 176,
+      "pos": 1
+    },
+    {
+      "name": "list_rest",
+      "sig": "3pCCUFLVHhmwLqAbazzv4APaxkV8NV8vKJH929C2b5uMd6xCmJ8tJ2cySyAELg8RdDvwtf1JbytJDnPhHp45pq1N",
+      "err": null,
+      "ms": 172
+    },
+    {
+      "name": "buy_rest",
+      "sig": "2viy3z5zmR4DDLkUeoDXcdyT6auDJWaQu9thmWGmY5k9wCnUeDunFEVMD1TqBBYvKSWcVfCSEorvGT74N5TwnWuC",
+      "err": null,
+      "ms": 198
+    },
+    {
+      "name": "reveal",
+      "sig": "3mSrUdCCZsLrVKvW3s3aUvtSf34GvnUzJHBZ9AAHUWkXa8r4GMN5my2r7HydUaVUiro6TJkMAtWPe64Lt6ta59jU",
+      "err": null,
+      "ms": 169,
+      "pos": 2
+    },
+    {
+      "name": "reveal",
+      "sig": "55J6w4kakqGunPZ7xiNKovmxCPLDxxREi9djtyTMRAKYPoiEDK9SYFzVEv73jTbHQ3A6tAtBu1nEXSnESqCwnRgB",
+      "err": null,
+      "ms": 170,
+      "pos": 3
+    },
+    {
+      "name": "reveal",
+      "sig": "gzKBKpyPgUoa2a5AUiDe54BZ8tATCDfqztcZKZHjWA1zykg8GSr3CK9n2REg4zXgHWkun9T3AZUr5wXuBtUSHuG",
+      "err": null,
+      "ms": 174,
+      "pos": 4
+    },
+    {
+      "name": "reveal",
+      "sig": "4h2sABGzkqcMaX919mKnkQx1yKshMWFTsYAytGKfzAxfvENXFNTPy9bEzX4E5o5WiGbyjEZVG8Fv3GnjpdRJX758",
+      "err": null,
+      "ms": 171,
+      "pos": 5
+    },
+    {
+      "name": "withdraw_cards",
+      "sig": "2V3Hr919sC4DLzinjVoKmkQwqznhooY3yXyHL6LWcXNyq7VzXNfBiJ4q2J1Uavppdb5RpBt9uv4HJfKHqb9PYg92",
+      "err": null,
+      "ms": 168,
+      "tier": 0,
+      "count": 4
+    },
+    {
+      "name": "settle",
+      "sig": "AgD1pa4R7hk7k1fHhgcPvnkaqWC8prfWgHdPFGvTtY7cD76ZteNkYHi3LAxCk2d93tH1hb3SSXB5nitrMZd5CPT",
+      "err": null,
+      "ms": 170
+    }
+  ],
+  "checks": {
+    "vrfCallbackMs": 247,
+    "sealedReadStranger": "null",
+    "sealedReadOpener": "null",
+    "tableSigsSeenByOpener": 3,
+    "callbackSig": "AVWaJUGBhAQZimCHqSQjMMaAU6bma9Lr815edNC8782L4cg3RKCCnjAu7LcAXkN69fNiyXBFZXi99M9FV6GEqn6",
+    "callbackTx_stranger": "VISIBLE (5 logs)",
+    "callbackTx_opener": "VISIBLE (5 logs)",
+    "sealedSigsStranger": 0,
+    "evRestMatches": true,
+    "salePriceMatchesClock": true,
+    "sale": {
+      "price": "79",
+      "slot": "898057622",
+      "slotsAfterList": "66"
+    },
+    "verify": {
+      "ok": true,
+      "tiers": [
+        3,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "hitPos": 0,
+      "commitmentOk": true,
+      "revealedOk": true
+    },
+    "strangerPredictedCorrectly": false,
+    "players": {
+      "A": {
+        "chips": "1751",
+        "cards": [
+          1,
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "B": {
+        "chips": "1921",
+        "cards": [
+          4,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    "claims": [
+      {
+        "tier": 0,
+        "owed": 4,
+        "balance": 4,
+        "sig": "542ZB1MgQj9yqRHFw8eNhsJKdvkjxrR3zgRDoGVcypBzyL6tLTXuGtB2wEoHWixPjvC6t5MgypURBfV1qvrokFW4"
+      }
+    ],
+    "claimsOk": true
+  },
+  "players": [
+    "EUEvA1V54MjpCLEUr7S3ktfWocbTpgEpA3neMtP6e9MB",
+    "FCAMA7BX6Ni45VD5YJDB3eykXWt2x6taLi5UWmrxd2L1"
+  ]
+}
