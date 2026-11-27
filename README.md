@@ -10,6 +10,13 @@ Live at https://midrip.vercel.app (Solana devnet, play chips, no wallet needed).
 
 ![A pack on devnet: two cards revealed, the sealed rest listed on the clock, the private rollup refusing to show the sealed cards](docs/core-loop.gif)
 
+### For judges: a 60-second check
+
+1. Open https://midrip.vercel.app. The header shows live rollup blocks per second and "TEE attested" (the browser checks the private rollup's Intel TDX attestation before trusting it).
+2. On any pack with sealed cards, press Try to read the sealed cards: the private rollup returns nothing, from your own browser.
+3. On a finished pack, press Verify this pack (all 6 cards recomputed from the VRF output against the commitment posted before the first reveal), then follow "Settled to Solana" to the commit on Explorer.
+4. The code behind each step: `callback_draw`, `create_sealed_permission`, `list_rest`, `buy_rest`, `settle`, `claim_cards` in [programs/midrip/src/lib.rs](programs/midrip/src/lib.rs); draw, commitment and clock price in [logic.rs](programs/midrip/src/logic.rs).
+
 ### Try it in 30 seconds
 1. Open the link. The page makes a wallet that lives in your browser, and a labelled demo bot starts opening packs at the other tables.
 2. Press Get 2,000 play chips, then Open a pack on a free table.
