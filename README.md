@@ -6,7 +6,7 @@ Buy the pack mid-rip. Mid-Rip is a card-pack game on Solana where the unopened r
 
 It needs MagicBlock because MagicBlock VRF draws each pack into an account on a private Ephemeral Rollup that no wallet can read, the developer included; only the program can, and it turns one card face up each time the holder asks. The auction drops every 10 ms rollup block.
 
-Live at https://midrip.vercel.app (Solana devnet, play chips, no wallet needed).
+Live at https://midrip.vercel.app (Solana devnet, play chips, no wallet needed). Demo film (90 s): https://youtu.be/JqPGBgnIItc
 
 ![A pack on devnet: two cards revealed, the sealed rest listed on the clock, the private rollup refusing to show the sealed cards](docs/core-loop.gif)
 
