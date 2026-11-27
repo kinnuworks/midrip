@@ -74,3 +74,9 @@ footer { padding-block: var(--s-7); }
   .slot { margin-left: auto; }
   .actions .peek { margin-left: 0; }
 }
+.settled { font-size: 14px; margin-top: var(--s-2); }
+.hint { font-size: 15px; margin: var(--s-2) 0 0; color: var(--muted, inherit); }
+.live-stats { margin-block: var(--s-4); }
+.live-stats p { margin: 0 0 var(--s-2); }
+.steals { margin: 0; padding-left: 18px; font-size: 15px; }
+.steals li { margin: 2px 0; }

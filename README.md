@@ -134,7 +134,7 @@ Limits, in numbers: zero real users; 400 test packs; payout interval 83.3% to 10
 - Devnet only, with play chips. No real money moves. Cards in play are counts in each player's account; moved to a wallet they become SPL tokens with no metadata or images yet.
 - The demo bot runs in each visitor's browser so there is always someone to trade with. It is labelled everywhere it acts.
 - MagicBlock allows 10 plain commits per delegation, so a table commits itself to Solana for its first 9 packs; after that only player accounts are committed.
-- Trust: MagicBlock's VRF oracle and the operator of the TEE validator could see a pack's randomness. Our scripts check the endpoint's Intel TDX attestation with MagicBlock's SDK (which has an open issue about what that check authenticates, ephemeral-rollups-sdk #158); the browser app does not run that check yet.
+- Trust: MagicBlock's VRF oracle and the operator of the TEE validator could see a pack's randomness. The app and our scripts check the endpoint's Intel TDX attestation with MagicBlock's SDK before trusting it (the SDK has an open issue about what that check authenticates, ephemeral-rollups-sdk #158).
 
 ## Run it
 

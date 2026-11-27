@@ -6,6 +6,7 @@ import {
 } from "./lib/chain";
 import { clockPrice, evRestMilli, PACK_SIZE, TIER_NAMES, verifyPack, type VerifyResult } from "./lib/packmath";
 import { Bot } from "./lib/bot";
+import { verifyTeeRpcIntegrity } from "@magicblock-labs/ephemeral-rollups-sdk";
 import "./App.css";
 
 const MAX_TABLES = 32;
@@ -32,6 +33,10 @@ export default function App() {
   const [verified, setVerified] = useState<Record<number, VerifyResult>>({});
   const [peek, setPeek] = useState<Record<number, string>>({});
   const erRef = useRef<Connection | null>(null);
+  const [attested, setAttested] = useState<null | boolean>(null);
+  const slotHist = useRef<{ t: number; s: bigint }[]>([]);
+  const [bps, setBps] = useState<number | null>(null);
+  const [settled, setSettled] = useState<Record<number, { sig: string; nonce: string }>>({});
   const botRef = useRef<Bot | null>(null);
   const [botOn, setBotOn] = useState(params.get("bot") !== "off");
   const [botStatus, setBotStatus] = useState("Bot is starting…");
@@ -51,6 +56,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
+        verifyTeeRpcIntegrity("https://devnet-tee.magicblock.app").then(() => setAttested(true), () => setAttested(false));
         const c = await teeConnection(me);
         erRef.current = c;
         setEr(c);
@@ -100,6 +106,10 @@ export default function App() {
           else void bot.step(next, BigInt(s), cfgRef.current, me, bp);
         }
         setSlot(BigInt(s));
+        const hist = slotHist.current;
+        hist.push({ t: performance.now(), s: BigInt(s) });
+        while (hist.length > 2 && hist[hist.length - 1].t - hist[0].t > 3000) hist.shift();
+        if (hist.length > 2) { const a = hist[0], b = hist[hist.length - 1]; if (b.t > a.t) setBps(Math.round((Number(b.s - a.s) * 1000) / (b.t - a.t))); }
       } catch { /* transient RPC error: next tick retries */ }
     };
     tick();
@@ -108,6 +118,18 @@ export default function App() {
   }, [er, tableIds, me, delegated]);
 
   const pg = useMemo(() => (er ? program(er, me) : null), [er, me]);
+
+  // For each finished pack, find the commit that settled the table on Solana (first 9 packs per table).
+  useEffect(() => {
+    for (const [k, t] of Object.entries(tables)) {
+      const id = Number(k);
+      const nonce = t.nonce.toString();
+      if (t.state !== 4 || big(t.nonce) > 9n || settled[id]?.nonce === nonce) continue;
+      base.getSignaturesForAddress(tablePda(id), { limit: 1 }).then((sigs) => {
+        if (sigs[0] && !sigs[0].err) setSettled((m) => ({ ...m, [id]: { sig: sigs[0].signature, nonce } }));
+      }).catch(() => {});
+    }
+  }, [tables, settled]);
 
   const run = useCallback(async (label: string, table: number | undefined, build: () => Promise<Transaction>, onBase = false) => {
     if (!erRef.current) return null;
@@ -151,7 +173,11 @@ export default function App() {
   };
   const list = (id: number) => pg && run("sell the rest", id, () => pg.methods.listRest().accounts({ holder: me.publicKey, table: tablePda(id) }).transaction());
   const cancel = (id: number) => pg && run("cancel listing", id, () => pg.methods.cancelListing().accounts({ holder: me.publicKey, table: tablePda(id) }).transaction());
-  const buy = (id: number, t: Table) => pg && run("buy the rest", id, () => pg.methods.buyRest().accounts({ buyer: me.publicKey, sellerPlayer: playerPda(t.holder), table: tablePda(id) }).transaction());
+  const buy = async (id: number, t: Table) => {
+    if (!pg) return;
+    const r = await run("buy the rest", id, () => pg.methods.buyRest().accounts({ buyer: me.publicKey, sellerPlayer: playerPda(t.holder), table: tablePda(id) }).transaction());
+    if (r && !r.err) setNotice(`Bought: your press landed in rollup block ${r.slot ?? "?"}, ${r.ms} ms after you clicked. Fee: 0. The sealed rest of table ${id} is yours; keep ripping.`);
+  };
   const settle = async (id: number, t: Table) => {
     if (!pg) return;
     const players = [...new Set([t.opener.toBase58(), t.holder.toBase58(), me.publicKey.toBase58()])].map((w) => playerPda(new PublicKey(w)));
@@ -274,6 +300,7 @@ export default function App() {
           {(state === "ripping" || state === "listed") && <button className="ui-btn ui-btn--quiet peek" onClick={() => tryRead(id)}>Try to read the sealed cards</button>}
         </div>
         {peek[id] && (state === "ripping" || state === "listed") && <div className="peekres">{peek[id]}</div>}
+        {state === "done" && settled[id] && <div className="settled">Settled to Solana: <a href={EXPLORER(settled[id].sig)} target="_blank" rel="noreferrer">{short(settled[id].sig)}</a></div>}
         {state === "done" && v && (
           <div className={`verify ${v.ok ? "ok" : "bad"}`}>
             {v.ok ? `Verified: all ${PACK_SIZE} cards match the VRF output and the commitment posted before the first reveal.` : `Did not verify: ${v.reason ?? (v.commitmentOk ? "revealed cards differ" : "commitment differs")}`}
@@ -300,13 +327,14 @@ export default function App() {
         </div>
       )}
       <label className="botctl"><input type="checkbox" checked={botOn} onChange={(e) => setBotOn(e.target.checked)} /> Demo bot ({botStatus}{botPlayer ? ` · ${big(botPlayer.chips).toString()} chips` : ""})</label>
-      {owned && <div className="owned">In your wallet on Solana: {owned.map((n, i) => `${TIER_NAMES[i]} ${n}`).join(" · ")} (<a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">see tokens</a>)</div>}
+      {owned && <div className="owned">In your wallet on Solana: {owned.map((n, i) => n > 0 ? <span key={i}><a href={EXPLORER_ADDR(mintPda(i).toBase58())} target="_blank" rel="noreferrer">{TIER_NAMES[i]}</a> {n} · </span> : null)}<a href={EXPLORER_ADDR(me.publicKey.toBase58())} target="_blank" rel="noreferrer">your wallet on Explorer</a></div>}
     </section>
   );
 
   const lede2 = "Reveal a card, or put the sealed rest on a price clock that drops every 10 ms block, and anyone can buy it mid-rip.";
-  const slotPill = <div className="slot ui-num">Rollup block <b>{slot.toString()}</b></div>;
-  const heroTable = heroId !== undefined ? renderTable(heroId, true) : <div className="table hero-table placeholder"><p className="wait">Connecting to MagicBlock's private rollup…</p></div>;
+  const slotPill = <div className="slot ui-num">Rollup block <b>{slot.toString()}</b>{bps ? ` · ${bps} blocks/s` : ""}{attested ? " · TEE attested" : ""}</div>;
+  const heroHint = heroId !== undefined && tables[heroId]?.state === 3 && !tables[heroId].holder.equals(me.publicKey) ? <p className="hint">Watch this clock. Press Buy before someone else does.</p> : null;
+  const heroTable = heroId !== undefined ? <>{renderTable(heroId, true)}{heroHint}</> : <div className="table hero-table placeholder"><p className="wait">Connecting to MagicBlock's private rollup…</p></div>;
 
   return (
     <div className="page">
@@ -339,6 +367,19 @@ export default function App() {
           <div><b className="ui-num">227 ms</b><span>median VRF draw</span></div>
         </section>
 
+        {Object.keys(tables).length > 0 && (
+          <section className="live-stats" aria-label="Live on devnet">
+            <p className="ui-num">Live on devnet: {Object.values(tables).reduce((a, t) => a + Number(t.nonce.toString()), 0)} packs opened across {Object.keys(tables).length} tables.</p>
+            <ul className="steals">
+              {Object.entries(tables).filter(([, t]) => t.state === 4 && t.sales_count > 0).slice(0, 4).map(([k, t]) => {
+                const left = t.last_sale.cards_left;
+                const after = t.revealed.slice(PACK_SIZE - left).filter((x) => x !== 255).map((x) => TIER_NAMES[x]);
+                const hit = after.find((n) => n === "Rare" || n === "Epic" || n === "Legendary");
+                return <li key={k}>Table {k}: the sealed {left} sold for {big(t.last_sale.price).toString()} chips mid-rip; the buyer pulled {hit ? <b>{hit}</b> : "no hit"} ({after.join(", ")}).</li>;
+              })}
+            </ul>
+          </section>
+        )}
         {error && <div className="error" role="alert">{error}</div>}
         {notice && <div className="notice" role="status">{notice} <button className="ui-btn ui-btn--sm" onClick={() => setNotice(null)}>OK</button></div>}
 
@@ -369,6 +410,7 @@ export default function App() {
             <li>Packs paid back 93.8% of their price (95% interval 83.3% to 105.4%; designed for 97%). Collector Crypt players got back 94.2% (Bitquery).</li>
             <li>A reveal came back in 167 ms at the median; a VRF draw in 227 ms.</li>
           </ul>
+          <p>Every pack with its randomness and commitment: <a href="https://github.com/kinnuworks/midrip/blob/master/evidence/packs-run1.json" target="_blank" rel="noreferrer">run 1</a>, <a href="https://github.com/kinnuworks/midrip/blob/master/evidence/packs-run2.json" target="_blank" rel="noreferrer">run 2</a>. Rerun: <code>cd app &amp;&amp; PACKS=300 node scripts/evidence.mjs</code>.</p>
         </section>
 
         <section className="receipts" id="receipts">
