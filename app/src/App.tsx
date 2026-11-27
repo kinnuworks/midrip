@@ -232,8 +232,21 @@ export default function App() {
   const price = config ? big(config.pack_price) : 0n;
   const now = Date.now();
 
-  const rank = (id: number) => { const t = tables[id]; if (!t) return 9; if (t.holder.equals(me.publicKey) && t.state >= 1 && t.state <= 3) return 0; if (t.state === 3) return 1; if (t.state === 2 || t.state === 1) return 2; if (t.state === 0) return 3; return 4; };
-  const order = [...tableIds].filter((id) => tables[id]).sort((a, b) => rank(a) - rank(b) || a - b);
+  // Hero = a live clock if there is one. Expired listings and packs left untouched for ~10 minutes rank last.
+  const STALE = 60_000n;
+  const lastMove = (t: Table) => [big(t.opened_slot), big(t.listing.list_slot), big(t.last_sale.slot)].reduce((x, y) => (x > y ? x : y));
+  const rank = (id: number) => {
+    const t = tables[id];
+    if (!t) return 9;
+    const stale = t.state >= 1 && t.state <= 3 && slot > 0n && slot > lastMove(t) + STALE;
+    if (stale || (t.state === 3 && slot > big(t.listing.end_slot))) return 6;
+    if (t.holder.equals(me.publicKey) && t.state >= 1 && t.state <= 3) return 0;
+    if (t.state === 3) return 1;
+    if (t.state === 2 || t.state === 1) return 2;
+    if (t.state === 0) return 3;
+    return 4;
+  };
+  const order = [...tableIds].filter((id) => tables[id]).sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? Number(big(tables[b].listing.list_slot) - big(tables[a].listing.list_slot)) : 0) || a - b);
   const [heroId, ...restIds] = order;
 
   const renderTable = (id: number, hero = false) => {

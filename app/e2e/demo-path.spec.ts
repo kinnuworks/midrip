@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 // The demo path a judge takes, on devnet and MagicBlock's private rollup, with a fresh browser wallet.
 test("join, open, rip, sell the sealed rest on the clock, peek, get bought, verify", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Table 0")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Table 0", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".slot b")).not.toHaveText("0", { timeout: 30_000 });
 
   await page.getByRole("button", { name: "Get 2,000 play chips" }).click();
